@@ -30,12 +30,25 @@ typedef struct RenderContext {
 } SE_RenderContext;
 
 
-typedef struct SE_ShaderProg{
+typedef struct SE_ShaderProg {
     VkShaderModule vert;
     VkShaderModule frag;
 } SE_ShaderProg;
 
 
+typedef struct SE_PipelineConfig {
+
+} SE_PipelineConfig;
+
+typedef struct SE_Pipeline {
+    VkPipeline pipe;
+
+    //NOTE(ELI): This structure is supposed
+    //to contain all the data required for
+    //Draw Commands, minus a command buffer.
+    //This means attachments, shader buffers,
+    //Descriptor sets, etc.
+} SE_Pipeline;
 
 SE_RenderContext SE_CreateRenderContext(SE_window* win);
 void SE_InitSwapChain(SE_RenderContext* r, SE_window* win);
@@ -44,6 +57,7 @@ void SE_DestroySwapChain(SE_RenderContext* r);
 
 SE_ShaderProg SE_LoadShader(SE_RenderContext* r, const char* vert, const char* frag);
 void SE_UnLoadShader(SE_RenderContext* r, SE_ShaderProg* s);
+
 
 
 

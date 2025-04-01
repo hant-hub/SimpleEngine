@@ -370,3 +370,15 @@ void SE_UnLoadShader(SE_RenderContext* r, SE_ShaderProg* s) {
     vkDestroyShaderModule(r->ldev.l, s->vert, NULL);
     vkDestroyShaderModule(r->ldev.l, s->frag, NULL);
 }
+
+
+SE_Pipeline SE_CreatePipeline(SE_ShaderProg* s) {
+    SE_Pipeline p;
+
+    
+
+
+
+
+    return p;
+}
