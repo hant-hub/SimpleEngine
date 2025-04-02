@@ -1,0 +1,370 @@
+#include "platform.h"
+#include "util.h"
+#include <render/render.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <vulkan/vulkan_core.h>
+
+#include "pipeline.c"
+
+static const char* InstanceExtensions[] = {
+    VK_KHR_SURFACE_EXTENSION_NAME
+};
+static const u32 InstanceExtensionCount = ASIZE(InstanceExtensions);
+
+
+#ifdef SE_DEBUG_VULKAN
+static const char* ValidationLayers[] = {
+    "VK_LAYER_KHRONOS_validation"
+};
+static const u32 ValidationLayerCount = ASIZE(ValidationLayers);
+#endif
+
+
+static const char* DeviceExtensions[] = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+
+static const u32 DeviceExtensionCount = ASIZE(DeviceExtensions);
+
+
+
+i32 RatePhysicalDevice(SE_mem_arena* a, u32* gfam, u32* pfam, VkPhysicalDevice p, VkSurfaceKHR surf) {
+    i32 score = 0;
+
+    //Extension support
+    u32 numExtensions;
+    vkEnumerateDeviceExtensionProperties(p, NULL, &numExtensions, NULL);
+    VkExtensionProperties* extprops = SE_ArenaAlloc(a, (sizeof(VkExtensionProperties) * numExtensions));
+    assert(extprops);
+    vkEnumerateDeviceExtensionProperties(p, NULL, &numExtensions, extprops);
+
+    for (u32 i = 0; i < DeviceExtensionCount; i++) {
+        Bool32 found = FALSE; 
+        for (u32 j = 0; j < numExtensions; j++) {
+            if (SE_strcmp(DeviceExtensions[i], extprops[j].extensionName)) {
+                found = TRUE;
+            }
+        }
+        if (!found) {
+            SE_Log("Missing Extensions\n");
+            return -1;
+        }
+    }
+
+    //present support
+    u32 numfam;
+    vkGetPhysicalDeviceQueueFamilyProperties(p, &numfam, NULL);
+
+    VkQueueFamilyProperties* qprops = SE_ArenaAlloc(a, sizeof(VkQueueFamilyProperties) * numfam);
+    vkGetPhysicalDeviceQueueFamilyProperties(p, &numfam, qprops);
+
+    Bool32 pfound = FALSE;
+    Bool32 gfound = FALSE;
+    for (int i = 0; i < numfam; i++) {
+        VkBool32 supported;
+        vkGetPhysicalDeviceSurfaceSupportKHR(p, i, surf, &supported);
+        if (supported) {
+            *pfam = i;
+            pfound = TRUE;
+        }
+        if (qprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            *gfam = i;
+            gfound = TRUE;
+        }
+        if (gfound && pfound) break;
+
+    }
+
+    if (!pfound || !gfound) {
+        return -1;
+    }
+
+    VkPhysicalDeviceProperties prop;
+    vkGetPhysicalDeviceProperties(p, &prop);
+
+    switch (prop.deviceType) {
+        case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+            {
+                score += 4;
+                break;
+            }
+        case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+            {
+                score += 3;
+                break;
+            }
+        case VK_PHYSICAL_DEVICE_TYPE_CPU:
+            {
+                score += 2;
+                break;
+            }
+        default:
+            {
+                score += 1;
+            }
+    }
+
+    return score;
+}
+
+SE_swapchain SE_CreateSwapChain(SE_mem_arena* a, SE_render_context* r, SE_window* win, SE_swapchain* old) {
+    SE_swapchain s = {0};
+    //SwapChain
+    
+    SE_mem_arena t = {0};
+    if (!a) {
+        t = SE_ArenaCreateHeap(4096 * 5); 
+        a = &t;
+    }
+
+    {
+        u32 numformats;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(r->p, r->surf, &numformats, NULL);
+        VkSurfaceFormatKHR* formats = SE_ArenaAlloc(a, sizeof(VkSurfaceFormatKHR) * numformats);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(r->p, r->surf, &numformats, formats);
+
+        u32 numModes;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(r->p, r->surf, &numModes, NULL);
+        VkPresentModeKHR* modes = SE_ArenaAlloc(a, sizeof(VkPresentModeKHR) * numModes);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(r->p, r->surf, &numModes, modes);
+
+        //pick format
+        s.format = formats[0];
+        for (u32 i = 0; i < numformats; i++) {
+            if (formats[i].format == VK_FORMAT_R8G8B8A8_SRGB && 
+                    formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                s.format = formats[i];
+            }
+        }
+        //check if undefined
+        assert(s.format.format);
+
+        //pick mode
+        s.mode = VK_PRESENT_MODE_FIFO_KHR;
+        for (u32 i = 0; i < numModes; i++) {
+            if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+                s.mode = modes[i];
+            }
+        }
+        //check, should never equal 0 since it is initialized to FIFO and 
+        //can only be updated to Mailbox
+        assert(s.mode);
+
+        //free mem
+        SE_ArenaReset(a);
+    }
+    {
+        VkSurfaceCapabilitiesKHR cap;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(r->p, r->surf, &cap);
+
+        VkExtent2D extent;
+        if (cap.currentExtent.width != UINT32_MAX) {
+            extent = cap.currentExtent;
+        } else {
+            extent.width = CLAMP(cap.maxImageExtent.width, cap.minImageExtent.width, win->width);
+            extent.height = CLAMP(cap.maxImageExtent.height, cap.minImageExtent.height, win->height);
+        }
+
+        u32 minImages = cap.minImageCount + 1;
+        minImages = (minImages > cap.maxImageCount) && cap.maxImageCount ? cap.maxImageCount : minImages;
+
+        SE_Log("Frame Extent: (%d, %d)\n", extent.width, extent.height);
+        s.size = extent;
+
+
+        //create swapchain
+        VkSharingMode sharing = r->Queues.gfam == r->Queues.pfam ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT;
+        u32 indicies[] = {r->Queues.gfam, r->Queues.pfam};
+
+        VkSwapchainCreateInfoKHR swapInfo = {
+            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .presentMode = s.mode,
+            .imageFormat = s.format.format,
+            .imageColorSpace = s.format.colorSpace,
+            .imageArrayLayers = 1,
+            .imageExtent = extent,
+            .clipped = VK_TRUE,
+            .preTransform = cap.currentTransform,
+            .imageSharingMode = sharing,
+            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .surface = r->surf,
+            .minImageCount = minImages,
+            .queueFamilyIndexCount = r->Queues.gfam == r->Queues.pfam ? 1 : 2,
+            .pQueueFamilyIndices = indicies,
+            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .oldSwapchain = old->swap
+        };
+
+        REQUIRE_ZERO(vkCreateSwapchainKHR(r->l, &swapInfo, NULL, &s.swap));
+    }
+    if (old->swap) {
+        for (u32 i = 0; i < old->numImgs; i++) {
+            vkDestroyImageView(r->l, old->views[i], NULL);
+        }
+
+        //images are destroyed by swapchain
+        vkDestroySwapchainKHR(r->l, old->swap, NULL);
+        SE_HeapFree(old->views);
+        SE_HeapFree(old->imgs);
+    }
+
+    //images and views
+    {
+        vkGetSwapchainImagesKHR(r->l, s.swap, &s.numImgs, NULL);
+        s.imgs = SE_HeapAlloc(sizeof(VkImage) * s.numImgs);
+        vkGetSwapchainImagesKHR(r->l, s.swap, &s.numImgs, s.imgs);
+
+        s.views = SE_HeapAlloc(sizeof(VkImageView) * s.numImgs);
+        for (u32 i = 0; i < s.numImgs; i++) {
+            VkImageViewCreateInfo viewInfo = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .components = {
+                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                },
+                .format = s.format.format,
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .layerCount = 1,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .baseMipLevel = 0,
+                },
+                .image = s.imgs[i],
+            };
+
+            REQUIRE_ZERO(vkCreateImageView(r->l, &viewInfo, NULL, &s.views[i]));
+        }
+    }
+
+    if (t.data) {
+        SE_ArenaDestroyHeap(t);
+    }
+
+    SE_Log("SwapChain with %d Images Created\n", s.numImgs);
+    return s;
+}
+
+
+SE_render_context SE_CreateRenderContext(SE_window* win) {
+    SE_render_context rc = {0};
+    //TODO(ELI): Run Tests To Make Sure this is enough
+    //memory for initializing vulkan, it should be,
+    //but check to make sure
+    SE_mem_arena a = SE_ArenaCreateHeap((4096 * 32));
+
+    {
+
+        u32 numExtensions = InstanceExtensionCount + SE_PlatformInstanceExtensionCount; 
+        const char** Extensions = SE_ArenaAlloc(&a, sizeof(char*) * numExtensions);
+
+        for (u32 i = 0; i < InstanceExtensionCount; i++) {
+            Extensions[i] = InstanceExtensions[i];
+        }
+        for (u32 i = 0; i < SE_PlatformInstanceExtensionCount; i++) {
+            Extensions[i + InstanceExtensionCount] = SE_PlatformInstanceExtensions[i];
+        }
+
+        VkApplicationInfo appInfo = {
+            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+            .pApplicationName = win->title,
+            .pEngineName = "Simple Engine",
+            .engineVersion = VK_MAKE_VERSION(1, 0, 0),
+            .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+            .apiVersion = VK_API_VERSION_1_0
+        };
+
+        VkInstanceCreateInfo instanceInfo = {
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pApplicationInfo = &appInfo,
+            .ppEnabledExtensionNames = Extensions,
+            .enabledExtensionCount = numExtensions,
+            .enabledLayerCount = ValidationLayerCount,
+            .ppEnabledLayerNames = ValidationLayers,
+        };
+
+        REQUIRE_ZERO(vkCreateInstance(&instanceInfo, NULL, &rc.instance));
+        SE_ArenaReset(&a);
+    }
+
+    rc.surf = SE_CreateVKSurface(win, rc.instance);
+
+    {
+        u32 numDevices;        
+        vkEnumeratePhysicalDevices(rc.instance, &numDevices, NULL);
+
+        //there should be at least one device
+        assert(numDevices);
+
+        VkPhysicalDevice* devices = SE_ArenaAlloc(&a, sizeof(VkPhysicalDevice) * numDevices);
+        vkEnumeratePhysicalDevices(rc.instance, &numDevices, devices); 
+
+        i32 maxscore = 0;
+        for (u32 i = 0; i < numDevices; i++) {
+            SE_mem_arena a1 = SE_ArenaCreateArena(&a, (sizeof(VkQueueFamilyProperties) * 5000));
+            u32 gfam, pfam;
+            i32 score = RatePhysicalDevice(&a1, &gfam, &pfam, devices[i], rc.surf);
+            if (score >= maxscore) {
+                rc.p = devices[i];
+                rc.Queues.gfam = gfam;
+                rc.Queues.pfam = pfam;
+                maxscore = score;
+            }
+            SE_ArenaReset(&a1);
+        }
+        SE_ArenaReset(&a);
+        assert(rc.p);
+        SE_Log("Physical Device Created!\n");
+        SE_Log("Queue Families: %u %u\n", rc.Queues.gfam, rc.Queues.pfam);
+    }
+
+    //Logical Device
+    {
+        float priority = 1.0f;
+        u32 numQueues = 1;
+        VkDeviceQueueCreateInfo queueInfos[2];
+        queueInfos[0] = (VkDeviceQueueCreateInfo){
+            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                .queueCount = 1,
+                .queueFamilyIndex = rc.Queues.gfam,
+                .pQueuePriorities = &priority,
+        };
+
+        if (rc.Queues.gfam != rc.Queues.pfam) {
+            ++numQueues;
+            queueInfos[1] = (VkDeviceQueueCreateInfo){
+                .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                    .queueCount = 1,
+                    .pQueuePriorities = &priority,
+                    .queueFamilyIndex = rc.Queues.pfam,
+            };
+        }
+
+        VkPhysicalDeviceFeatures features = {0};
+
+        VkDeviceCreateInfo devInfo = {
+            .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .queueCreateInfoCount = numQueues,
+            .pQueueCreateInfos = queueInfos,
+            .pEnabledFeatures = &features,
+            .enabledExtensionCount = DeviceExtensionCount,
+            .ppEnabledExtensionNames = DeviceExtensions,
+            .enabledLayerCount = ValidationLayerCount,
+            .ppEnabledLayerNames = ValidationLayers,
+        };
+
+        REQUIRE_ZERO(vkCreateDevice(rc.p, &devInfo, NULL, &rc.l));
+        vkGetDeviceQueue(rc.l, rc.Queues.gfam, 0, &rc.Queues.g);
+        vkGetDeviceQueue(rc.l, rc.Queues.pfam, 0, &rc.Queues.p);
+    }
+
+    SE_ArenaReset(&a);
+    rc.s = SE_CreateSwapChain(&a, &rc, win, &rc.s); 
+
+    SE_ArenaDestroyHeap(a);
+    return rc;
+}
