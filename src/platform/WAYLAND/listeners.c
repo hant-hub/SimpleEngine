@@ -50,7 +50,8 @@ static void SE_xsurf_configure(void *data, struct xdg_surface *xdg_surface,
         SE_window* win = data;
         win->resize = TRUE;
     }
-    //wl_surface_commit(win->wsurf);
+    SE_window* win = data;
+    wl_surface_commit(win->wsurf);
 }
 
 static const struct xdg_surface_listener SE_xsurf_handler = {

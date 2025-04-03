@@ -11,6 +11,8 @@
 
 #include <platform.h>
 #include <render/render.h>
+#include <render/pipeline.h>
+
 
 #include "platform/wayland/wayland.h"
 #include "platform/wayland/xdg_shell_protocol.h"
@@ -41,6 +43,24 @@ const u32 SE_PlatformInstanceExtensionCount
 const char* title = "testapp";
 
 int main(int argc, char* argv[]) {
+    //set working directory
+
+    char path[1024] = {0};
+    if (readlink("/proc/self/exe", path, sizeof(path)) == -1) {
+        perror("Failed to get Working Directory");
+        SE_Exit(-1);
+    }
+    u32 end = sizeof(path) - 1;
+    while (path[end] != '/') {
+        path[end] = 0;
+        end--;
+    }
+
+    if (chdir(path) == -1) {
+        perror("Failed to set Working Directory");
+        SE_Exit(-1);
+    }
+
    SE_window w = {0}; 
    w.title = title;
    w.display = wl_display_connect(NULL);
@@ -83,32 +103,38 @@ int main(int argc, char* argv[]) {
    //framebuffers are ready
 
    //temporary use shm to attach buffer
-   const int width = 800;
-   const int height = 600;
-   const int stride = width * 4;
-   const int size = stride * height;
-   int fd = allocFile(size);  
-   struct wl_shm_pool* pool = wl_shm_create_pool(w.shm, fd, size);
-   struct wl_buffer* buf = wl_shm_pool_create_buffer(pool, 0, width, height, stride, WL_SHM_FORMAT_XRGB8888);
+   //const int width = 800;
+   //const int height = 600;
+   //const int stride = width * 4;
+   //const int size = stride * height;
+   //int fd = allocFile(size);  
+   //struct wl_shm_pool* pool = wl_shm_create_pool(w.shm, fd, size);
+   //struct wl_buffer* buf = wl_shm_pool_create_buffer(pool, 0, width, height, stride, WL_SHM_FORMAT_XRGB8888);
 
-   void* data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-   SE_memset(data, 128, size);
-   munmap(data, size);
+   //void* data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+   //SE_memset(data, 128, size);
+   //munmap(data, size);
  
+   //wl_surface_commit(w.wsurf);
+
+   //wl_surface_attach(w.wsurf, buf, 0, 0);
+   //wl_surface_damage(w.wsurf, 0, 0, UINT32_MAX, UINT32_MAX);
+
    wl_surface_commit(w.wsurf);
    wl_display_roundtrip(w.display);
-
-   wl_surface_attach(w.wsurf, buf, 0, 0);
-   wl_surface_damage(w.wsurf, 0, 0, UINT32_MAX, UINT32_MAX);
    wl_surface_commit(w.wsurf);
-
 
    //init Vulkan
    SE_render_context r = SE_CreateRenderContext(&w);
+   SE_shaders s = SE_LoadShaders(&r, "shaders/vert.spv", "shaders/frag.spv");
+   SE_render_pipeline p = SE_CreatePipeline(&r, &s);
+
+
 
    //temporary loop
-   while (wl_display_dispatch(w.display) && !w.quit) {
-       SE_Log("Screen: (%d, %d)\n", w.width, w.height);
+   while (!w.quit) {
+       wl_display_roundtrip(w.display);
+       SE_DrawFrame(&w, &r, &p);
    }
 
    return 0;

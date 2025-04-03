@@ -35,13 +35,13 @@ typedef struct SE_swapchain {
 } SE_swapchain;
 
 
-
-
 typedef struct SE_render_context {
     VkInstance instance;
     VkSurfaceKHR surf;
     VkDevice l;
     VkPhysicalDevice p;
+    VkCommandPool pool;
+    VkCommandBuffer cmd;
 
     struct Queues {
         u32 gfam;

@@ -25,11 +25,27 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
+    sb_cmd_push(c, "mkdir", "-p", "build/shaders");
+    if (sb_cmd_sync_and_reset(c)) {
+        return -1;
+    }
+
+    sb_cmd_push(c, "glslc", "shaders/test.glsl.vert", "-o", "build/shaders/vert.spv");
+    if (sb_cmd_sync_and_reset(c)) {
+        return -1;
+    }
+
+    sb_cmd_push(c, "glslc", "shaders/test.glsl.frag", "-o", "build/shaders/frag.spv");
+    if (sb_cmd_sync_and_reset(c)) {
+        return -1;
+    }
+
+
     sb_cmd_push(c, "cc", "-g", "-Iinclude", "-Werror=vla", "-D", "WAYLAND");
     sb_cmd_push(c, "-D SE_DEBUG_CONSOLE");
     sb_cmd_push(c, "-D SE_ASSERT");
     sb_cmd_push(c, "-D SE_DEBUG_VULKAN");
-    sb_cmd_push(c, "src/platform/wayland/platform.c"); //TODO(ELI): Make switch with platform
+    sb_cmd_push(c, "src/platform/WAYLAND/platform.c"); //TODO(ELI): Make switch with platform
     sb_cmd_push(c, "src/render/vulkan.c");
     sb_cmd_push(c, "src/util.c");
 

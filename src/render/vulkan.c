@@ -6,6 +6,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include "pipeline.c"
+#include "memory.c"
 
 static const char* InstanceExtensions[] = {
     VK_KHR_SURFACE_EXTENSION_NAME
@@ -245,6 +246,8 @@ SE_swapchain SE_CreateSwapChain(SE_mem_arena* a, SE_render_context* r, SE_window
         SE_ArenaDestroyHeap(t);
     }
 
+
+
     SE_Log("SwapChain with %d Images Created\n", s.numImgs);
     return s;
 }
@@ -365,6 +368,29 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
     SE_ArenaReset(&a);
     rc.s = SE_CreateSwapChain(&a, &rc, win, &rc.s); 
 
+    {
+        //command buffer 
+        VkCommandPoolCreateInfo poolInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .queueFamilyIndex = rc.Queues.gfam,
+            .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        };
+
+        REQUIRE_ZERO(vkCreateCommandPool(rc.l, &poolInfo, NULL, &rc.pool));
+        SE_Log("Command Pool Created\n");
+
+        VkCommandBufferAllocateInfo cmdAlloc = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandBufferCount = 1,
+            .commandPool = rc.pool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        };
+
+        REQUIRE_ZERO(vkAllocateCommandBuffers(rc.l, &cmdAlloc, &rc.cmd));
+    }
+
+
     SE_ArenaDestroyHeap(a);
     return rc;
 }
+
