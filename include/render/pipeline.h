@@ -40,15 +40,23 @@ typedef struct SE_shaders {
 typedef struct SE_render_pipeline {
     VkPipeline* pipelines;
     SE_shaders* shaders;
+
     VkFramebuffer* framebuffers;
+
     SE_render_pass* rpasses;
     SE_sub_pass* subpasses;
     SE_attachment_ref* refs;
+
     SE_attachment* attachments;
 
     VkSemaphore* avalible;
     VkSemaphore* finished;
     VkFence* pending;
+
+    u32 numframebuffers;
+    u32 numPasses;
+    u32 numAttachments;
+    u32 numFrames;
 } SE_render_pipeline;
 
 

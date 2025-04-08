@@ -72,4 +72,8 @@ void SE_ArenaReset(SE_mem_arena* a);
 #define CLAMP(max, min, val) \
     val <= max ? (val >= min ? val : min) : max
 
+#define KB(x) (x * (1<<10))
+#define MB(x) (x * (1<<20))
+#define GB(x) (x * (1<<30))
+
 #endif

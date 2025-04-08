@@ -2,6 +2,7 @@
 #include <platform.h>
 #include <render/render.h>
 #include <render/pipeline.h>
+#include <render/memory.h>
 #include <vulkan/vulkan_core.h>
 
 
@@ -34,6 +35,9 @@ SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* fr
     return s;
 }
 
+
+
+
 SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
     SE_render_pipeline p;
 
@@ -46,7 +50,7 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
     };
 
     VkAttachmentReference attachRef = {
@@ -108,6 +112,8 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .vertexAttributeDescriptionCount = 0,
         .vertexBindingDescriptionCount = 0,
+        .pVertexAttributeDescriptions = 0,
+        .pVertexBindingDescriptions = 0,
     };
 
 
@@ -182,8 +188,12 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
     //TODO(ELI): Auto generate descriptor sets for shaders
     VkPipelineLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+
+        //descriptor sets ----
         .setLayoutCount = 0,
         .pSetLayouts = NULL,
+        //--------------------
+        
         .pushConstantRangeCount = 0,
     };
 
@@ -211,6 +221,8 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
 
 
     //framebuffers
+
+    p.numframebuffers = r->s.numImgs;
     p.framebuffers = SE_HeapAlloc(sizeof(VkFramebuffer) * r->s.numImgs);
     for (u32 i = 0; i < r->s.numImgs; i++) {
         VkFramebufferCreateInfo frameInfo = {
@@ -230,6 +242,7 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
     {
         //TODO(ELI): allow configuration in future
         const u32 numFrames = 1;
+        p.numFrames = numFrames;
         p.avalible = SE_HeapAlloc(sizeof(VkSemaphore) * numFrames);  
         p.finished = SE_HeapAlloc(sizeof(VkSemaphore) * numFrames);  
         p.pending = SE_HeapAlloc(sizeof(VkFence) * numFrames);  

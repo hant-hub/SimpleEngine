@@ -7,6 +7,7 @@
 
 #include "pipeline.c"
 #include "memory.c"
+#include "vertex.c"
 
 static const char* InstanceExtensions[] = {
     VK_KHR_SURFACE_EXTENSION_NAME

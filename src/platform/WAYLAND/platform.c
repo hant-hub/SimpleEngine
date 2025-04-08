@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <stdarg.h>
@@ -16,6 +18,7 @@
 
 #include "platform/wayland/wayland.h"
 #include "platform/wayland/xdg_shell_protocol.h"
+#include "render/memory.h"
 #include "util.h"
 #include "xdg_shell_protocol.c"
 
@@ -128,6 +131,8 @@ int main(int argc, char* argv[]) {
    SE_render_context r = SE_CreateRenderContext(&w);
    SE_shaders s = SE_LoadShaders(&r, "shaders/vert.spv", "shaders/frag.spv");
    SE_render_pipeline p = SE_CreatePipeline(&r, &s);
+   SE_render_memory mem = SE_CreateHeapTrackers(&r);
+   SE_resource_arena v = SE_CreateResourceTrackerBuffer(&r, &mem,VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, KB(1));
 
 
 

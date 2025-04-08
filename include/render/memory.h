@@ -3,41 +3,50 @@
 
 #include <util.h>
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
+#include <render/render.h>
 
 /*
- * The Plan:
+ * The Plan v2:
  *
- * Search device memory types,
- * for each type create a SE_render_memory
+ * The plan now is to create a memory arena
+ * for each kind of resource, ie: Static Textures,
+ * GPU side read write textures, CPU writable textures,
+ * Vertex Buffers, etc.
+ * 
  *
- * Each SE_render_memory is an arena,
- * with a large block of GPU memory allocated
- * and then buffers being suballocated
- *
- * For now the plan is to put these memory arenas
- * into SE_render_context
- *
- * If they run out of memory, crash the program.
- *
- * For the final version, use a metaprogramming tool
- * to scan each allocation and calculate the required
- * size.
+ * Use nested arenas, one for each heap,
+ * and one for each resource kind.
  *
  *
- * If necessary create a heap allocater for the future
- *
- *
- * For right now allocate each buffer individually,
- * maybe in future use arenas on individual types of
- * buffers, ie: vertex arena, index arena, etc.
  */
 
 
-typedef struct SE_render_memory {
-    VkDeviceMemory devMem;
+typedef struct SE_render_heap {
+    VkMemoryPropertyFlagBits props;
     u64 top;
     u64 size;
+} SE_render_heap;
+
+typedef struct SE_resource_arena {
+    VkDeviceMemory devMem;
+    void* resource;
+    u64 size;
+    u64 top;
+    u64 alignment;
+} SE_resource_arena;
+
+typedef struct SE_render_memory {
+    SE_render_heap* heaps;
+    u32 numheaps;
 } SE_render_memory;
 
+typedef struct SE_render_buffer {
+    u32 offset;
+    u32 size;
+} SE_render_buffer;
+
+SE_render_memory SE_CreateHeapTrackers(SE_render_context* r);
+SE_resource_arena SE_CreateResourceTrackerBuffer(SE_render_context* r, SE_render_memory* m, VkBufferUsageFlagBits flags, VkMemoryPropertyFlagBits props, u64 minsize);
 
 #endif
