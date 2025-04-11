@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
     if (sb_cmd_sync_and_reset(c)) {
         return -1;
     }
-    return 0; // temporary for testing
+    //return 0; // temporary for testing
 
     sb_cmd_push(c, "glslc", "shaders/test.glsl.vert", "-o", "build/shaders/vert.spv");
     if (sb_cmd_sync_and_reset(c)) {
@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
     }
 
 
-    sb_cmd_push(c, "cc", "-std=c99", "-pedantic", "-g", "-Iinclude", "-Werror=vla", "-D", "WAYLAND");
+    sb_cmd_push(c, "cc", "-std=c99", "-pedantic", "-g", "-Iinclude", "-Werror=vla", "-D WAYLAND");
     sb_cmd_push(c, "-D SE_DEBUG_CONSOLE");
     sb_cmd_push(c, "-D SE_ASSERT");
     sb_cmd_push(c, "-D SE_DEBUG_VULKAN");
@@ -70,6 +70,8 @@ int main(int argc, char* argv[]) {
     sb_cmd_push(c, "src/util.c");
 
     sb_cmd_push(c, "-lwayland-client");
+    sb_cmd_push(c, "-lrt");
+    sb_cmd_push(c, "-lc");
     sb_cmd_push(c, "-lvulkan");
     sb_cmd_push(c, "-o", "build/test");
 

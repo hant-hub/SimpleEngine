@@ -1,8 +1,14 @@
-#ifndef SE_GENERATED_DEF_H
-#define SE_GENERATED_DEF_H
 typedef enum SE_meta_type{
 	Meta_Type_char,
 	Meta_Type_char_pointer,
+	Meta_Type_float,
+	Meta_Type_float_pointer,
+	Meta_Type_Bool32,
+	Meta_Type_Bool32_pointer,
+	Meta_Type_wl_registry,
+	Meta_Type_wl_registry_pointer,
+	Meta_Type_wl_display,
+	Meta_Type_wl_display_pointer,
 	Meta_Type_uint32_t,
 	Meta_Type_uint32_t_pointer,
 	Meta_Type_uint64_t,
@@ -45,11 +51,12 @@ typedef enum SE_meta_type{
 	Meta_Type_VkImageView_pointer,
 	Meta_Type_VkQueue,
 	Meta_Type_VkQueue_pointer,
-	Meta_Type_SE_render_context,
-	Meta_Type_SE_render_context_pointer,
-	Meta_Type_Queues,
-	Meta_Type_Queues_pointer,
-	Meta_Type_SE_swapchain,
-	Meta_Type_SE_swapchain_pointer,
+	Meta_Type_vert,
+	Meta_Type_vert_pointer,
+	Meta_Type_SE_v4f,
+	Meta_Type_SE_v4f_pointer,
+	Meta_Type_SE_v3f,
+	Meta_Type_SE_v3f_pointer,
+	Meta_Type_SE_v2f,
+	Meta_Type_SE_v2f_pointer,
 } SE_meta_type;
-#endif

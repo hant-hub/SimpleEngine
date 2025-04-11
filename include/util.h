@@ -76,4 +76,6 @@ void SE_ArenaReset(SE_mem_arena* a);
 #define MB(x) (x * (1<<20))
 #define GB(x) (x * (1<<30))
 
+#define META_INTROSPECT(x)
+
 #endif

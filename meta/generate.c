@@ -4,6 +4,10 @@
 
 const char* baseTypes[] = {
     "char",
+    "float",
+    "Bool32",
+    "wl_registry",
+    "wl_display",
     "uint32_t",
     "uint64_t",
     "int32_t",
@@ -27,10 +31,8 @@ const char* baseTypes[] = {
     "VkQueue",
 };
 
-void GenerateStructDefHeader(const char* name, StructData* head) {
-    FILE* out = fopen("include/generated/generated_def.h","w+");
-    fprintf(out, "#ifndef SE_GENERATED_DEF_H\n");
-    fprintf(out, "#define SE_GENERATED_DEF_H\n");
+void GenerateStructDefHeader(FILE* out, StructData* head) {
+
     {
         StructData* curr = head;
         //enums
@@ -47,16 +49,9 @@ void GenerateStructDefHeader(const char* name, StructData* head) {
         }
         fprintf(out, "} SE_meta_type;\n");
     }
-    fprintf(out, "#endif\n");
-    fclose(out);
 }
 
-void GenerateStructDefSource(const char* name, StructData* head) {
-    FILE* out = fopen("src/generated/generated_def.c","w+");
-    
-    fprintf(out, "#include <%s>\n", name);
-    fprintf(out, "#include <generated/generated_static.h>\n");
-    fprintf(out, "#include <generated/generated_def.h>\n\n");
+void GenerateStructDefSource(FILE* out, StructData* head) {
 
     {
         StructData* curr = head;
@@ -66,9 +61,11 @@ void GenerateStructDefSource(const char* name, StructData* head) {
 
             for (int i = 0; i < curr->numMembers; i++) {
                 StructMember m = curr->members[i];
-                fprintf(out, "\t{Meta_Type_%.*s%.*s, \"%.*s\", (u64)&(((struct %.*s *)0)->%.*s)},\n", 
+                fprintf(out, "\t{Meta_Type_%.*s%.*s, \"%.*s\", (u64)&(((struct %.*s *)0)->%.*s), (u64)sizeof(((struct %.*s *)0)->%.*s)},\n", 
                         m.t.nameSize, m.t.basename, 
                         m.t.isPointer * 9, "_pointer",
+                        m.nameSize, m.name,
+                        curr->nameSize, curr->name,
                         m.nameSize, m.name,
                         curr->nameSize, curr->name,
                         m.nameSize, m.name
@@ -80,5 +77,4 @@ void GenerateStructDefSource(const char* name, StructData* head) {
             curr = curr->next;
         }
     }
-    fclose(out);
 }

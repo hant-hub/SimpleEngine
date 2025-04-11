@@ -1,5 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "render/vertex.h"
+#include <generated/generated_struct.h>
+
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <stdarg.h>
@@ -127,19 +130,44 @@ int main(int argc, char* argv[]) {
    wl_display_roundtrip(w.display);
    wl_surface_commit(w.wsurf);
 
+
    //init Vulkan
    SE_render_context r = SE_CreateRenderContext(&w);
    SE_shaders s = SE_LoadShaders(&r, "shaders/vert.spv", "shaders/frag.spv");
-   SE_render_pipeline p = SE_CreatePipeline(&r, &s);
-   SE_render_memory mem = SE_CreateHeapTrackers(&r);
-   SE_resource_arena v = SE_CreateResourceTrackerBuffer(&r, &mem,VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, KB(1));
 
+   SE_mem_arena config = SE_ArenaCreateHeap(KB(10));
+   SE_vertex_spec sv = SE_CreateVertSpecInline(&config, Meta_Def_vert, ASIZE(Meta_Def_vert));
+   SE_render_pipeline p = SE_CreatePipeline(&r, &sv, &s);
+
+   SE_ArenaDestroyHeap(config);
+
+
+   SE_render_memory mem = SE_CreateHeapTrackers(&r);
+   SE_resource_arena v = SE_CreateResourceTrackerBuffer(&r, &mem,VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                                                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                                                 KB(2));
+   void* data;
+   vkMapMemory(r.l, v.devMem, 0, KB(1), 0, &data);
+   vert* vdata = (vert*)data;
+   vdata[0] = (vert) {
+       .pos = {-0.5, 0.5},
+       .uv = {1, 0, 0},
+   };
+   vdata[1] = (vert) {
+       .pos = {0, -0.5},
+       .uv = {0, 1, 0},
+   };
+   vdata[2] = (vert) {
+       .pos = {0.5, 0.5},
+       .uv = {0, 0, 1},
+   };
+   vkUnmapMemory(r.l, v.devMem);
 
 
    //temporary loop
    while (!w.quit) {
        wl_display_roundtrip(w.display);
-       SE_DrawFrame(&w, &r, &p);
+       SE_DrawFrame(&w, &r, &p, &v);
    }
 
    return 0;

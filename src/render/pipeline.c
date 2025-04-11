@@ -1,3 +1,4 @@
+#include "render/vertex.h"
 #include "util.h"
 #include <platform.h>
 #include <render/render.h>
@@ -35,10 +36,19 @@ SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* fr
     return s;
 }
 
+SE_sub_pass SE_CreateSubPass(SE_render_context* r) {
+    SE_sub_pass s = {0};
+
+    s.descrip = (VkSubpassDescription) {
+        .colorAttachmentCount = 1,
+    };
+    
+
+    return s;
+}
 
 
-
-SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
+SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_vertex_spec* vspec, SE_shaders* s) {
     SE_render_pipeline p;
 
     //renderpass
@@ -108,14 +118,6 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
 
     //TODO(ELI): This will need to be constructed based on
     //the shaders used
-    VkPipelineVertexInputStateCreateInfo vertInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexAttributeDescriptionCount = 0,
-        .vertexBindingDescriptionCount = 0,
-        .pVertexAttributeDescriptions = 0,
-        .pVertexBindingDescriptions = 0,
-    };
-
 
     VkDynamicState dynStates[] = {
         VK_DYNAMIC_STATE_VIEWPORT,
@@ -207,7 +209,7 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
         .stageCount = 2,
         .pInputAssemblyState = &inputInfo,
         .pRasterizationState = &rasterInfo,
-        .pVertexInputState = &vertInfo,
+        .pVertexInputState = &vspec->inputstate,
         .pDynamicState = &dynInfo,
         .pViewportState = &viewInfo,
         .pColorBlendState = &colorblendInfo,
@@ -270,7 +272,7 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_shaders* s) {
 }
 
 //temporary
-void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p) {
+void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_resource_arena* vert) {
 
         static u32 frame = 0;
         vkWaitForFences(r->l, 1, &p->pending[frame], VK_TRUE, UINT64_MAX);
@@ -326,6 +328,11 @@ void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p) {
             .extent = r->s.size
         };
         vkCmdSetScissor(r->cmd, 0, 1, &scissor);
+
+        
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(r->cmd, 0, 1, (VkBuffer*)(&vert->resource), offsets);
+
         vkCmdDraw(r->cmd, 3, 1, 0, 0);
         vkCmdEndRenderPass(r->cmd);
         REQUIRE_ZERO(vkEndCommandBuffer(r->cmd));

@@ -1,6 +1,7 @@
 #ifndef SE_WAYLAND_H
 #define SE_WAYLAND_H
 
+#include "math/vector.h"
 #include <wayland-client-protocol.h>
 #include <wayland-client.h>
 #include <platform/wayland/xdg_shell_protocol.h>
@@ -26,7 +27,10 @@ typedef struct SE_window {
     struct wl_shm* shm;
 } SE_window;
 
-
+META_INTROSPECT() typedef struct vert {
+    SE_v2f pos;
+    SE_v3f uv;
+} vert;
 
 
 #endif

@@ -31,6 +31,9 @@ TokenType MatchType(Token t) {
     if (memcmp(t.start, "typedef", t.size) == 0) {
         return TOKEN_TYPEDEF;
     }
+    if (memcmp(t.start, "const", t.size) == 0) {
+        return TOKEN_CONST;
+    }
 
     return TOKEN_IDENTIFIER;
 }

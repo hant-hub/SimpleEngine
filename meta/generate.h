@@ -4,8 +4,8 @@
 
 #include <stdio.h>
 
-void GenerateStructDefHeader(const char* name, StructData* head);
-void GenerateStructDefSource(const char* name, StructData* head);
+void GenerateStructDefHeader(FILE* out, StructData* head);
+void GenerateStructDefSource(FILE* out, StructData* head);
 
 
 #endif

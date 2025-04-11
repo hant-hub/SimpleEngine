@@ -2,6 +2,7 @@
 #include "parser.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define _POSIX_C_SOURCE 200809L
 
@@ -19,6 +20,9 @@ StructMember ParseMember(Tokenizer* t) {
     m.t.isStruct = 0;
     if (type.t == TOKEN_STRUCT) {
         m.t.isStruct = 1;
+        type = GetToken(t, 0);
+    }
+    if (type.t == TOKEN_CONST) {
         type = GetToken(t, 0);
     }
 
@@ -47,13 +51,20 @@ StructMember ParseMember(Tokenizer* t) {
 StructData* ParseStruct(Tokenizer* t, StructData* head) {
     Token name = GetToken(t, 0);
     if (name.t == TOKEN_EOF) return head;
+    
+
+    //skip opening brace
+    // Check if valid
+    Token test = name;
+    while (test.t != '{' && test.t != ';') test = GetToken(t, 0);
+    if (test.t == ';') {
+        return head;
+    }
 
     uint32_t cap = 5;
     uint32_t top = 0;
     StructMember* members = malloc(sizeof(StructMember) * cap);
 
-    //skip opening brace
-    if (name.t != '{') GetToken(t, 0);
     Token m = GetToken(t, 0);
     while (m.t != '}' && m.t != TOKEN_EOF) {
         //printf("m: %.*s\n", m.size, m.start);
@@ -98,8 +109,7 @@ StructData* ParseStruct(Tokenizer* t, StructData* head) {
 }
 
 
-StructData* GetStructData(File* f) {
-    StructData* head = NULL;
+StructData* GetStructData(File* f, StructData* head) {
 
     int fd = f->fd;
     struct stat s;
@@ -120,7 +130,10 @@ StructData* GetStructData(File* f) {
 
     while ((t = GetToken(&tok, 0)).t != TOKEN_EOF) {
         if (t.t == TOKEN_STRUCT) {
-            head = ParseStruct(&tok, head);
+            Token ignore = GetToken(&tok, 5);
+            if (memcmp(ignore.start, "META_INTROSPECT", ignore.size) == 0) {
+                head = ParseStruct(&tok, head);
+            }
         }
     }
 

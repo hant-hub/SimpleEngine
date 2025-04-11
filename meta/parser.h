@@ -27,7 +27,7 @@ typedef struct StructData {
     StructMember* members;
 } StructData;
 
-StructData* GetStructData(File* f);
+StructData* GetStructData(File* f, StructData* head);
 void FreeStructData(StructData* head, File f);
 
 #endif

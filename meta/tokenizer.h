@@ -7,6 +7,7 @@ typedef enum TokenType {
     TOKEN_EOF = 128,
     TOKEN_STRUCT,
     TOKEN_TYPEDEF,
+    TOKEN_CONST,
     TOKEN_IDENTIFIER,
     TOKEN_NUM,
 } TokenType;

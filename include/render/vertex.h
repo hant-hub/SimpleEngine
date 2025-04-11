@@ -2,6 +2,7 @@
 #define VERTEX_H
 
 #include <vulkan/vulkan_core.h>
+#include <generated/generated_static.h>
 #include <util.h>
 
 typedef struct SE_vertex_spec {
@@ -12,6 +13,6 @@ typedef struct SE_vertex_spec {
     u32 numbindings;
 } SE_vertex_spec;
 
-
+SE_vertex_spec SE_CreateVertSpecInline(SE_mem_arena* a, SE_struct_member* mem, u64 size);
 
 #endif
