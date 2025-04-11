@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
 
    SE_mem_arena config = SE_ArenaCreateHeap(KB(10));
    SE_vertex_spec sv = SE_CreateVertSpecInline(&config, Meta_Def_vert, ASIZE(Meta_Def_vert));
-   SE_render_pipeline p = SE_CreatePipeline(&r, &sv, &s);
+   SE_render_pipeline p = SE_CreatePipeline(SE_ArenaCreateHeap(MB(10)), &r, &sv, &s);
 
    SE_ArenaDestroyHeap(config);
 
@@ -163,11 +163,13 @@ int main(int argc, char* argv[]) {
    };
    vkUnmapMemory(r.l, v.devMem);
 
+   SE_sync_objs sync = SE_CreateSyncObjs(&r);
+
 
    //temporary loop
    while (!w.quit) {
        wl_display_roundtrip(w.display);
-       SE_DrawFrame(&w, &r, &p, &v);
+       SE_DrawFrame(&w, &r, &p, &sync, &v);
    }
 
    return 0;

@@ -36,23 +36,35 @@ SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* fr
     return s;
 }
 
-SE_sub_pass SE_CreateSubPass(SE_render_context* r) {
-    SE_sub_pass s = {0};
+//TODO(ELI): Go and implement a proper dynamic array utility, the current
+//Arenas are not quite adequate yet.
+//TODO(ELI): Alternatively pass in the cap as a parameter and have Attachments
+//be a subarena that suballocates
+SE_attachments SE_CreateAttachments(SE_mem_arena* a, SE_render_context* r) {
+    const u32 cap = 2;
+    SE_attachments at = {0};
+    at.cap = cap;
+    at.num = 0;
 
-    s.descrip = (VkSubpassDescription) {
-        .colorAttachmentCount = 1,
-    };
-    
+    at.img = SE_ArenaAlloc(a, sizeof(VkImage) * at.cap);
+    at.view = SE_ArenaAlloc(a, sizeof(VkImageView) * at.cap);
 
-    return s;
+    return at;
 }
 
+SE_attachment_refs SE_CreateAttachmentRefs(SE_mem_arena* a, SE_render_context* r, SE_attachments* attachments) {
+    //initialize final color pass
+    SE_attachment_refs refs = {0};
 
-SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_vertex_spec* vspec, SE_shaders* s) {
-    SE_render_pipeline p;
+    //baseline one output image
+    refs.num = attachments->num + 1;
 
-    //renderpass
-    VkAttachmentDescription attachDescrip = {
+    refs.ref = SE_ArenaAlloc(a, sizeof(VkAttachmentReference) * refs.num);
+    refs.descrip = SE_ArenaAlloc(a, sizeof(VkAttachmentDescription) * refs.num);
+
+    //final color pass
+
+    refs.descrip[0] = (VkAttachmentDescription) {
         .format = r->s.format.format,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -63,10 +75,49 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_vertex_spec* vspec
         .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
     };
 
-    VkAttachmentReference attachRef = {
+    refs.ref[0] = (VkAttachmentReference) {
         .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .attachment = 0,
     };
+
+
+    //TODO(ELI): Finish Attachment setup
+
+
+    return refs;
+}
+
+
+//NOTE(ELI): The Plan is to Pass in a bunch of ENUM commands for subpasses,
+//then convert them one by one into subpasses with correct dependencies and
+//then create a render pass
+
+//TODO(ELI): Remember to Add support for custom subpasses, so that users
+//can do lower level graphics operations. Ideally have a table that could
+//be added to or subtracted from via some metaprogramming magic
+SE_render_pass SE_CreateRenderPass(void) {
+    SE_render_pass r;
+
+
+    return r;
+}
+
+//TODO(ELI): The final version of this is to have a setup where a pipeline
+//config is passed in, and then the pipeline is created based on that, some
+//kind of array of enums combined with methods to query and allocate attachments
+//while creating frame buffers is also necessary.
+
+//TODO(ELI): Set up descriptor set creation, required for input attachments
+//which are necessary for things like tonemapping and post processing effects,
+//or at least very convienient for.
+SE_render_pipeline SE_CreatePipeline(SE_mem_arena a, SE_render_context* r, SE_vertex_spec* vspec, SE_shaders* s) {
+    SE_render_pipeline p;
+    p.mem = a;
+
+    //TODO(ELI): Set up system for specifying attachments 
+    //Perhaps based on the subpass requirements 
+    p.attachments = SE_CreateAttachments(&p.mem, r);
+    p.refs = SE_CreateAttachmentRefs(&p.mem, r, &p.attachments);
 
     VkSubpassDependency subDeps[] = {
         (VkSubpassDependency){
@@ -82,12 +133,12 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_vertex_spec* vspec
     VkSubpassDescription subDescrip = {
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &attachRef,
+        .pColorAttachments = &p.refs.ref[0],
     };
 
     VkRenderPassCreateInfo rInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .pAttachments = &attachDescrip,
+        .pAttachments = &p.refs.descrip[0],
         .attachmentCount = 1,
         .pSubpasses = &subDescrip,
         .subpassCount = 1,
@@ -241,29 +292,6 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_vertex_spec* vspec
     }
 
     //Sync Objects
-    {
-        //TODO(ELI): allow configuration in future
-        const u32 numFrames = 1;
-        p.numFrames = numFrames;
-        p.avalible = SE_HeapAlloc(sizeof(VkSemaphore) * numFrames);  
-        p.finished = SE_HeapAlloc(sizeof(VkSemaphore) * numFrames);  
-        p.pending = SE_HeapAlloc(sizeof(VkFence) * numFrames);  
-
-        for (u32 i = 0; i < numFrames; i++) {
-            VkSemaphoreCreateInfo semInfo = {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            };
-
-            VkFenceCreateInfo fenceInfo = {
-                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-            };
-
-            REQUIRE_ZERO(vkCreateSemaphore(r->l, &semInfo, NULL, &p.avalible[i]));
-            REQUIRE_ZERO(vkCreateSemaphore(r->l, &semInfo, NULL, &p.finished[i]));
-            REQUIRE_ZERO(vkCreateFence(r->l, &fenceInfo, NULL, &p.pending[i]));
-        }
-    }
 
     SE_Log("Graphics Pipeline and Renderpass Created\n");
     SE_Log("FrameBuffers Created\n");
@@ -271,23 +299,63 @@ SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_vertex_spec* vspec
     return p;
 }
 
+SE_sync_objs SE_CreateSyncObjs(SE_render_context* r) {
+    SE_sync_objs s = {0};
+    //TODO(ELI): allow configuration in future
+    const u32 numFrames = 1;
+    s.numFrames = numFrames;
+    s.avalible = SE_HeapAlloc(sizeof(VkSemaphore) * numFrames);  
+    s.finished = SE_HeapAlloc(sizeof(VkSemaphore) * numFrames);  
+    s.pending = SE_HeapAlloc(sizeof(VkFence) * numFrames);  
+
+    for (u32 i = 0; i < numFrames; i++) {
+        VkSemaphoreCreateInfo semInfo = {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        };
+
+        VkFenceCreateInfo fenceInfo = {
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+        };
+
+        REQUIRE_ZERO(vkCreateSemaphore(r->l, &semInfo, NULL, &s.avalible[i]));
+        REQUIRE_ZERO(vkCreateSemaphore(r->l, &semInfo, NULL, &s.finished[i]));
+        REQUIRE_ZERO(vkCreateFence(r->l, &fenceInfo, NULL, &s.pending[i]));
+    }
+    return s;
+}
+
+void SE_DestroySyncObjs(SE_render_context* r, SE_sync_objs* s) {
+    for (u32 i = 0; i < s->numFrames; i++) {
+        vkDestroySemaphore(r->l, s->finished[i], NULL);
+        vkDestroySemaphore(r->l, s->avalible[i], NULL);
+        vkDestroyFence(r->l, s->pending[i], NULL);
+    }
+    SE_HeapFree(s->pending);
+    SE_HeapFree(s->avalible);
+    SE_HeapFree(s->finished);
+}
+
 //temporary
-void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_resource_arena* vert) {
+void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_sync_objs* s, SE_resource_arena* vert) {
 
         static u32 frame = 0;
-        vkWaitForFences(r->l, 1, &p->pending[frame], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(r->l, 1, &s->pending[frame], VK_TRUE, UINT64_MAX);
 
         u32 imgIndex;
-        VkResult res = vkAcquireNextImageKHR(r->l, r->s.swap, UINT64_MAX, p->avalible[frame], VK_NULL_HANDLE, &imgIndex);
+        VkResult res = vkAcquireNextImageKHR(r->l, r->s.swap, UINT64_MAX, s->avalible[frame], VK_NULL_HANDLE, &imgIndex);
         
-        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
+        if (/*win->resize ||*/ res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
+            //SE_DestroySyncObjs(r, s); 
+            //*s = SE_CreateSyncObjs(r);
             r->s = SE_CreateSwapChain(NULL, r, win, &r->s);
+            win->resize = FALSE;
             return;
         } else if (res) {
             SE_Exit(-1);
         }
 
-        vkResetFences(r->l, 1, &p->pending[frame]);
+        vkResetFences(r->l, 1, &s->pending[frame]);
         
         VkCommandBufferBeginInfo beginInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -343,19 +411,19 @@ void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, S
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .commandBufferCount = 1,
             .pCommandBuffers = &r->cmd,
-            .pWaitSemaphores = &p->avalible[frame],
+            .pWaitSemaphores = &s->avalible[frame],
             .waitSemaphoreCount = 1,
-            .pSignalSemaphores = &p->finished[frame],
+            .pSignalSemaphores = &s->finished[frame],
             .signalSemaphoreCount = 1,
             .pWaitDstStageMask = &waitStage,
         };
 
-        REQUIRE_ZERO(vkQueueSubmit(r->Queues.g, 1, &subInfo, p->pending[frame]));
+        REQUIRE_ZERO(vkQueueSubmit(r->Queues.g, 1, &subInfo, s->pending[frame]));
         
         VkPresentInfoKHR presentInfo = {
             .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             .waitSemaphoreCount = 1,
-            .pWaitSemaphores = &p->finished[frame],
+            .pWaitSemaphores = &s->finished[frame],
             .swapchainCount = 1,
             .pSwapchains = &r->s.swap,
             .pImageIndices = &imgIndex,

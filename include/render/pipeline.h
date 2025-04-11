@@ -21,15 +21,18 @@ typedef struct SE_sub_pass {
     u32 depthAttachment;
 } SE_sub_pass;
 
-typedef struct SE_attachment_ref {
-    VkAttachmentDescription descrip;
-    VkAttachmentReference ref;
-} SE_attachment_ref;
+typedef struct SE_attachment_refs {
+    VkAttachmentDescription* descrip;
+    VkAttachmentReference* ref;
+    u32 num;
+} SE_attachment_refs;
 
-typedef struct SE_attachment {
-    VkImage img;
-    VkImageView view;
-} SE_attachment;
+typedef struct SE_attachments {
+    VkImage* img;
+    VkImageView* view;
+    u32 num;
+    u32 cap;
+} SE_attachments;
 
 typedef struct SE_shaders {
     VkShaderModule vert;
@@ -51,6 +54,9 @@ typedef struct SE_pass_config {
 } SE_pass_config;
 
 typedef struct SE_render_pipeline {
+    //backing memory for the pipeline
+    SE_mem_arena mem;
+
     VkPipeline* pipelines;
     SE_shaders* shaders;
 
@@ -58,24 +64,27 @@ typedef struct SE_render_pipeline {
 
     SE_render_pass* rpasses;
     SE_sub_pass* subpasses;
-    SE_attachment_ref* refs;
 
-    SE_attachment* attachments;
-
-    VkSemaphore* avalible;
-    VkSemaphore* finished;
-    VkFence* pending;
+    SE_attachment_refs refs;
+    SE_attachments attachments;
 
     u32 numframebuffers;
     u32 numPasses;
-    u32 numAttachments;
-    u32 numFrames;
 } SE_render_pipeline;
+
+typedef struct SE_sync_objs {
+    VkSemaphore* avalible;
+    VkSemaphore* finished;
+    VkFence* pending;
+    u32 numFrames;
+} SE_sync_objs;
 
 
 SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* frag);
-SE_render_pipeline SE_CreatePipeline(SE_render_context* r, SE_vertex_spec* vspec, SE_shaders* s);
+SE_sync_objs SE_CreateSyncObjs(SE_render_context* r);
 
-void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_resource_arena* vert);
+SE_render_pipeline SE_CreatePipeline(SE_mem_arena a, SE_render_context* r, SE_vertex_spec* vspec, SE_shaders* s);
+
+void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_sync_objs* s, SE_resource_arena* vert);
 
 #endif

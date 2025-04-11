@@ -18,6 +18,11 @@ char* files[] = {
     "platform/wayland/wayland.h"
 };
 
+//TODO(ELI): Make this cross platform
+
+//TODO(ELI): Implement shader reflection
+
+//TODO(ELI): Investigate Custom Shader preprocessor?
 
 int main(int argc, char* argv[]) {
     
