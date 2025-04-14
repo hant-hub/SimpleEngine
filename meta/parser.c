@@ -61,6 +61,16 @@ StructData* ParseStruct(Tokenizer* t, StructData* head) {
         return head;
     }
 
+    StructData* new = malloc(sizeof(StructData));
+
+    Token typedeftest = GetToken(t, 4);
+    //printf("type: %.*s\n", typedeftest.size, typedeftest.start);
+    if (typedeftest.t == TOKEN_TYPEDEF) {
+        new->isTypedef = 1;
+    } else {
+        new->isTypedef = 0;
+    }
+
     uint32_t cap = 5;
     uint32_t top = 0;
     StructMember* members = malloc(sizeof(StructMember) * cap);
@@ -98,12 +108,12 @@ StructData* ParseStruct(Tokenizer* t, StructData* head) {
         }
     }
 
-    StructData* new = malloc(sizeof(StructData));
     new->name = name.start;
     new->nameSize = name.size;
     new->members = members;
     new->numMembers = top;
     new->next = head;
+    new->skipdef = 0;
 
     return new;
 }
@@ -130,10 +140,27 @@ StructData* GetStructData(File* f, StructData* head) {
 
     while ((t = GetToken(&tok, 0)).t != TOKEN_EOF) {
         if (t.t == TOKEN_STRUCT) {
-            Token ignore = GetToken(&tok, 5);
+            Token ignore = GetToken(&tok, 4);
             if (memcmp(ignore.start, "META_INTROSPECT", ignore.size) == 0) {
                 head = ParseStruct(&tok, head);
+                //printf("struct found: %.*s %d\n", head->nameSize, head->name, head->isTypedef);
             }
+            ignore = GetToken(&tok, 5);
+            if (memcmp(ignore.start, "META_INTROSPECT", ignore.size) == 0) {
+                head = ParseStruct(&tok, head);
+                //printf("struct found: %.*s %d\n", head->nameSize, head->name, head->isTypedef);
+            }
+        }
+        if (memcmp(t.start, "META_BASE", t.size) == 0) {
+            Token name = GetToken(&tok, 0);
+            while (name.t != '{') name = GetToken(&tok, 0);
+            name = GetToken(&tok, 2); //one previous
+            StructData* new = malloc(sizeof(StructData));
+            new->next = head;
+            new->skipdef = 1;
+            new->name = name.start;
+            new->nameSize = name.size;
+            head = new;
         }
     }
 

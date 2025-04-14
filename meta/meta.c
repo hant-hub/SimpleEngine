@@ -8,7 +8,6 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-#include "tokenizer.h"
 #include "parser.h"
 #include "meta.h"
 #include "generate.h"
@@ -52,10 +51,6 @@ int main(int argc, char* argv[]) {
     //FreeStructData(head, f); 
 
     fclose(struct_defs);
-
-
-
-
 
     return 0;
 }

@@ -18,6 +18,7 @@
 #include <render/render.h>
 #include <render/pipeline.h>
 
+#include "math/mat.h"
 
 #include "platform/wayland/wayland.h"
 #include "platform/wayland/xdg_shell_protocol.h"
@@ -164,6 +165,23 @@ int main(int argc, char* argv[]) {
    vkUnmapMemory(r.l, v.devMem);
 
    SE_sync_objs sync = SE_CreateSyncObjs(&r);
+
+
+   SE_m4f i = SE_IdentityM4f();
+   SE_m4f t = (SE_m4f){
+       2, 0, 0, 0,
+       0, 2, 0, 0,
+       0, 0, 2, 0,
+       0, 0, 0, 1,
+   };
+
+   SE_m4f out = SE_MatMat4f(i, t); 
+   printf("Mat4: \t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n", 
+           out.a[0], out.a[4], out.a[8],  out.a[12], 
+           out.a[1], out.a[5], out.a[9],  out.a[13], 
+           out.a[2], out.a[6], out.a[10], out.a[14], 
+           out.a[3], out.a[7], out.a[11], out.a[15] 
+         );
 
 
    //temporary loop

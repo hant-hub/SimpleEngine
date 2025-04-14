@@ -13,4 +13,24 @@ typedef struct SE_struct_member {
     u64 size;
 } SE_struct_member;
 
+
+static SE_struct_member Meta_Def_SE_v2f[] = {
+    {Meta_Type_f32, "x", 0,           sizeof(f32)},
+    {Meta_Type_f32, "y", sizeof(f32), sizeof(f32)},
+};
+
+static SE_struct_member Meta_Def_SE_v3f[] = {
+    {Meta_Type_f32, "x", 0,               sizeof(f32)},
+    {Meta_Type_f32, "y", sizeof(f32),     sizeof(f32)},
+    {Meta_Type_f32, "z", sizeof(f32) * 2, sizeof(f32)},
+};
+
+static SE_struct_member Meta_Def_SE_v4f[] = {
+    {Meta_Type_f32, "x", 0,               sizeof(f32)},
+    {Meta_Type_f32, "y", sizeof(f32),     sizeof(f32)},
+    {Meta_Type_f32, "z", sizeof(f32) * 2, sizeof(f32)},
+    {Meta_Type_f32, "w", sizeof(f32) * 3, sizeof(f32)},
+};
+
+
 #endif

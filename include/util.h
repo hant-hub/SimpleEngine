@@ -11,6 +11,9 @@ typedef int8_t  i8;
 typedef int32_t i32;
 typedef int64_t i64;
 
+typedef float f32;
+typedef double f64;
+
 typedef void*(*alloc_func)(u64);
 typedef void(*free_func)(void*);
 
@@ -77,5 +80,6 @@ void SE_ArenaReset(SE_mem_arena* a);
 #define GB(x) (x * (1<<30))
 
 #define META_INTROSPECT(x)
+#define META_BASE(x)
 
 #endif

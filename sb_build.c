@@ -32,7 +32,8 @@ int main(int argc, char* argv[]) {
     }
 
     //metaprogramming layer
-    sb_cmd_push(c, "cc", "-g", "-Werror=vla"); 
+    sb_pick_compiler();
+    sb_cmd_push(c, sb_compiler(), "-g", "-Werror=vla"); 
     sb_cmd_push(c, "meta/meta.c");
     sb_cmd_push(c, "meta/tokenizer.c");
     sb_cmd_push(c, "meta/parser.c");
@@ -48,7 +49,7 @@ int main(int argc, char* argv[]) {
     if (sb_cmd_sync_and_reset(c)) {
         return -1;
     }
-    //return 0; // temporary for testing
+    //return 0;
 
     sb_cmd_push(c, "glslc", "shaders/test.glsl.vert", "-o", "build/shaders/vert.spv");
     if (sb_cmd_sync_and_reset(c)) {
@@ -61,13 +62,20 @@ int main(int argc, char* argv[]) {
     }
 
 
-    sb_cmd_push(c, "cc", "-std=c99", "-pedantic", "-g", "-Iinclude", "-Werror=vla", "-D WAYLAND");
+    sb_cmd_push(c, "cc", "-std=c99", "-pedantic", "-g", "-Iinclude", "-Werror=vla");
     sb_cmd_push(c, "-D SE_DEBUG_CONSOLE");
     sb_cmd_push(c, "-D SE_ASSERT");
     sb_cmd_push(c, "-D SE_DEBUG_VULKAN");
-    sb_cmd_push(c, "src/platform/WAYLAND/platform.c"); //TODO(ELI): Make switch with platform
+
+    if (strcmp(argv[1], "wayland") == 0) {
+        sb_cmd_push(c, "src/platform/WAYLAND/platform.c", "-D", "WAYLAND"); //TODO(ELI): Make switch with platform
+    } else if (strcmp(argv[1], "win32") == 0) {
+        sb_cmd_push(c, "src/platform/WIN32/platform.c", "-D", "WIN32");
+    }
+
     sb_cmd_push(c, "src/render/vulkan.c");
     sb_cmd_push(c, "src/util.c");
+    sb_cmd_push(c, "src/math/math.c");
 
     sb_cmd_push(c, "-lwayland-client");
     sb_cmd_push(c, "-lrt");

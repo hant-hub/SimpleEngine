@@ -24,6 +24,8 @@ typedef struct StructData {
     char* name;
     uint32_t nameSize;
     uint32_t numMembers;
+    uint32_t isTypedef;
+    uint32_t skipdef;
     StructMember* members;
 } StructData;
 
