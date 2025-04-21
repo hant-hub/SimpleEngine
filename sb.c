@@ -145,19 +145,23 @@ void sb_rebuild_self(int argc, char* argv[], const char* srcpath) {
 
     sb_cmd* c = &(sb_cmd){0};
     sb_pick_compiler();
-    sb_cmd_push(c, compiler, srcpath);
+    sb_cmd_push(c, compiler, srcpath, "-o", argv[0]);
     sb_cmd_sync_and_reset(c);
 
     //delete obj file
-    char temp[MAX_PATH] = {0};
-    int num = snprintf(temp, sizeof(temp), "%s", argv[0]);
-    while (temp[num] != '.') num--;
-    snprintf(&temp[num], sizeof(temp) - num, ".obj");
-    printf("%s\n", temp);
-    BOOL result = DeleteFile(temp);
-    if (!result) {
-        printf("Failed to delete obj: %ld\n", GetLastError());
-    }
+    //removed for this project because
+    //I've switched to clang rather than
+    //msvc
+
+    //char temp[MAX_PATH] = {0};
+    //int num = snprintf(temp, sizeof(temp), "%s", argv[0]);
+    //while (temp[num] != '.') num--;
+    //snprintf(&temp[num], sizeof(temp) - num, ".obj");
+    //printf("obj: %s\n", temp);
+    //BOOL result = DeleteFile(temp);
+    //if (!result) {
+    //    printf("Failed to delete obj: %ld\n", GetLastError());
+    //}
     
     //delete .old
     //doesn't work, maybe later?
@@ -289,9 +293,7 @@ void sb_pick_compiler() {
 //TODO(ELI): Add clang and gcc versions for windows
 //TODO(ELI): Add more detection for linux
 #ifdef _WIN32
-    #ifdef _MSC_VER
-        compiler = "cl.exe";
-    #endif
+    compiler = "clang.exe";
 #else
         compiler = "cc";
 #endif

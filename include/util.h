@@ -32,6 +32,7 @@ typedef u64 Bool64;
 Bool32 SE_strcmp(const char* s1, const char* s2);
 void SE_memcpy(void* dst, const void* src, u64 len);
 void SE_memset(void* dst, u8 byte, u64 len);
+int SE_strlen(const char* str);
 
 
 #ifdef SE_ASSERT
@@ -42,6 +43,7 @@ void SE_memset(void* dst, u8 byte, u64 len);
         i64 result = x; \
         if (result) {\
             SE_Log("%s : %d]: Failure: %d\n", __FILE__, __LINE__, result);\
+            assert(0);\
             SE_Exit(-1);\
         } \
     }

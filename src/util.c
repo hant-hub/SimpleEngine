@@ -26,6 +26,12 @@ void SE_memset(void* dst, u8 byte, u64 len) {
     }
 }
 
+int SE_strlen(const char* str) {
+    const char* p = str;
+    while (str[0]) str++;
+    return str - p; 
+}
+
 SE_mem_arena SE_ArenaCreateHeap(u32 size) {
     //align to 8 byte boundary
     size = (size + sizeof(u64)) & ~((u64)7);

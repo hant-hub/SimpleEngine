@@ -122,14 +122,14 @@ SE_swapchain SE_CreateSwapChain(SE_mem_arena* a, SE_render_context* r, SE_window
 
     {
         u32 numformats;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(r->p, r->surf, &numformats, NULL);
+        REQUIRE_ZERO(vkGetPhysicalDeviceSurfaceFormatsKHR(r->p, r->surf, &numformats, NULL));
         VkSurfaceFormatKHR* formats = SE_ArenaAlloc(a, sizeof(VkSurfaceFormatKHR) * numformats);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(r->p, r->surf, &numformats, formats);
+        REQUIRE_ZERO(vkGetPhysicalDeviceSurfaceFormatsKHR(r->p, r->surf, &numformats, formats));
 
         u32 numModes;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(r->p, r->surf, &numModes, NULL);
+        REQUIRE_ZERO(vkGetPhysicalDeviceSurfacePresentModesKHR(r->p, r->surf, &numModes, NULL));
         VkPresentModeKHR* modes = SE_ArenaAlloc(a, sizeof(VkPresentModeKHR) * numModes);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(r->p, r->surf, &numModes, modes);
+        REQUIRE_ZERO(vkGetPhysicalDeviceSurfacePresentModesKHR(r->p, r->surf, &numModes, modes));
 
         //pick format
         s.format = formats[0];
@@ -158,10 +158,18 @@ SE_swapchain SE_CreateSwapChain(SE_mem_arena* a, SE_render_context* r, SE_window
     }
     {
         VkSurfaceCapabilitiesKHR cap;
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(r->p, r->surf, &cap);
+        VkResult code = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(r->p, r->surf, &cap);
+
+        if (code == VK_ERROR_SURFACE_LOST_KHR) {
+            SE_Log("Lost Surface\n");
+        }
 
         VkExtent2D extent;
-        if (cap.currentExtent.width != UINT32_MAX) {
+        if (cap.currentExtent.width && 
+            cap.currentExtent.height &&
+            cap.currentExtent.width != UINT32_MAX &&
+            cap.currentExtent.height != UINT32_MAX
+            ) {
             extent = cap.currentExtent;
         } else {
             extent.width = CLAMP(cap.maxImageExtent.width, cap.minImageExtent.width, win->width);
