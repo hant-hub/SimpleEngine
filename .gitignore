@@ -2,4 +2,6 @@ build
 build/*
 *.sh
 sb_build
+sb_build.exe
+sb_build.exe.old
 compile_flags.txt
