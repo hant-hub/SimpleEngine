@@ -70,7 +70,6 @@ int main(int argc, char* argv[]) {
 
     sb_cmd_push(c, sb_compiler(), "-std=c99", "-pedantic", "-g", "-Iinclude", "-Werror=vla");
 
-
     sb_cmd_push(c, "-Ilib/vulkan/include");
     sb_cmd_push(c, "-Llib/vulkan/Lib");
     sb_cmd_push(c, "-isystem");
@@ -93,6 +92,7 @@ int main(int argc, char* argv[]) {
         sb_cmd_push(c, "-D", "WIN32");
         sb_cmd_push(c, "-luser32");
         sb_cmd_push(c, "-lvulkan-1");
+        sb_cmd_push(c, "-Xlinker", "/subsystem:windows");
     }
 
 
@@ -101,13 +101,16 @@ int main(int argc, char* argv[]) {
     sb_cmd_push(c, "-D SE_DEBUG_VULKAN");
 
     sb_cmd_push(c, "-o build/test.exe");
-    sb_cmd_push(c, "-Xlinker", "/subsystem:windows");
     
     if (sb_cmd_sync_and_reset(c)) {
         return -1;
     }
 
-    sb_cmd_push(c, "./build/test.exe");
+    if (strcmp(argv[1], "wayland") == 0) {
+        sb_cmd_push(c, "./build/test");
+    } else {
+        sb_cmd_push(c, "./build/test.exe");
+    }
 
     //run test
     if (sb_cmd_sync_and_reset(c)) {
