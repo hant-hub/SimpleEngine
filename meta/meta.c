@@ -1,56 +1,36 @@
-#define _POSIX_C_SOURCE 200809L
-
-#include <stdio.h>
-
-
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-
+#include "platform/include/platform.h"
+#include "token.h"
 #include "parser.h"
-#include "meta.h"
-#include "generate.h"
 
-char* files[] = {
-    "math/vector.h",
-    "platform/wayland/wayland.h"
-};
 
-//TODO(ELI): Make this cross platform
-
-//TODO(ELI): Implement shader reflection
-
-//TODO(ELI): Investigate Custom Shader preprocessor?
 
 int main(int argc, char* argv[]) {
-    
-    FILE* struct_defs = fopen("include/generated/generated_struct.h","w+");
-    FILE* type_defs = fopen("include/generated/generated_types.h","w+");
 
-    fprintf(struct_defs, "#ifndef SE_GENERATED_DEF_H\n");
-    fprintf(struct_defs, "#define SE_GENERATED_DEF_H\n");
+    spf_metadata filedata;
+    sp_file file = sp_OpenFile("include/platform/wayland/wayland.h", spf_READ, 0, &filedata);
+    void* data = sp_MemMapFile(file, filedata, spm_READ | spm_PRIVATE);
 
-    StructData* head = NULL;
-    for (int i = 0; i < sizeof(files)/sizeof(files[0]); i++) {
-        File f; 
-        char temp[1024] = {0};
-        snprintf(temp, sizeof(temp), "include/%s", files[i]);
-        f.fd = open(temp, O_RDONLY); 
-        head = GetStructData(&f, head);
-        fprintf(struct_defs, "#include <%s>\n", files[i]);
-    }
+    Tokenizer tok = (Tokenizer){
+        .data = data,
+        .filesize = filedata.size,
+        .At = data,
+        .linenumber = 0,
+    };
+    ParseFile(&tok);
 
-    fprintf(struct_defs, "#include <util.h>\n");
-    fprintf(struct_defs, "#include <generated/generated_static.h>\n");
-    GenerateStructDefSource(struct_defs, head);
-    fprintf(struct_defs, "#endif\n");
+    sp_UnMapFile(data, filedata);
+    sp_CloseFile(file);
 
-    GenerateStructDefHeader(type_defs, head);
+    file = sp_OpenFile("include/math/vector.h", spf_READ, 0, &filedata);
+    data = sp_MemMapFile(file, filedata, spm_READ | spm_PRIVATE);
 
-    //FreeStructData(head, f); 
+    tok.data = data;
+    tok.At = data;
+    tok.filesize = filedata.size;
+    tok.linenumber = 0;
+    ParseFile(&tok);
 
-    fclose(struct_defs);
-
+    sp_UnMapFile(data, filedata);
+    sp_CloseFile(file);
     return 0;
 }

@@ -1,185 +1,102 @@
-#include "tokenizer.h"
 #include "parser.h"
-#include <stdio.h>
-#include <stdlib.h>
+#include "platform/include/platform.h"
+#include "symboltable.h"
+#include "token.h"
 #include <string.h>
-
-#define _POSIX_C_SOURCE 200809L
-
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
+#include <sys/select.h>
 
 
-StructMember ParseMember(Tokenizer* t) {
-    StructMember m = {0};
-
-    //consume until semicolon
-    Token type = GetToken(t, 1);
-    m.t.isStruct = 0;
-    if (type.t == TOKEN_STRUCT) {
-        m.t.isStruct = 1;
-        type = GetToken(t, 0);
+void ParseStruct(Tokenizer* t) {
+    //either struct or typedef
+    Token name = GetToken(t); 
+    name = GetToken(t);
+    if (strcmp(&t->s.buffer.sbuf[name.name], "struct") == 0) {
+        name = GetToken(t);
     }
-    if (type.t == TOKEN_CONST) {
-        type = GetToken(t, 0);
-    }
+    uint32_t entry = GetEntry(&t->s, name.name);
+    sp_Printf("Name: %s, %d\n", GetName(&t->s, name.name), t->s.types[entry]);
 
-    Token pointer = GetToken(t, 0);
-
-    m.t.basename = type.start;
-    m.t.nameSize = type.size;
-    m.t.isPointer = pointer.t == '*';
-
-    Token s = GetToken(t, 1);
-    //printf("s: %.*s\n", s.size, s.start);
-    while (s.t != ';' && s.t != '}' && s.t != TOKEN_EOF) {
-        //printf("eaten: %d %.*s\n", s.t, s.size, s.start);
-        s = GetToken(t, 0);
-    }
-
-    s = GetToken(t, 2);
-    m.name = s.start;
-    m.nameSize = s.size;
-
-    //printf("%.*s\n", m.nameSize, m.name);
-
-    return m;
-}
-
-StructData* ParseStruct(Tokenizer* t, StructData* head) {
-    Token name = GetToken(t, 0);
-    if (name.t == TOKEN_EOF) return head;
+    //Opening bracket
+    GetToken(t);
     
+    uint32_t start = t->s.vsize;
+    uint32_t num = 0;
 
-    //skip opening brace
-    // Check if valid
-    Token test = name;
-    while (test.t != '{' && test.t != ';') test = GetToken(t, 0);
-    if (test.t == ';') {
-        return head;
-    }
-
-    StructData* new = malloc(sizeof(StructData));
-
-    Token typedeftest = GetToken(t, 4);
-    //printf("type: %.*s\n", typedeftest.size, typedeftest.start);
-    if (typedeftest.t == TOKEN_TYPEDEF) {
-        new->isTypedef = 1;
-    } else {
-        new->isTypedef = 0;
-    }
-
-    uint32_t cap = 5;
-    uint32_t top = 0;
-    StructMember* members = malloc(sizeof(StructMember) * cap);
-
-    Token m = GetToken(t, 0);
-    while (m.t != '}' && m.t != TOKEN_EOF) {
-        //printf("m: %.*s\n", m.size, m.start);
-        if (top + 1 > cap) {
-            cap *= 2;
-            members = (StructMember*)realloc(members, sizeof(StructMember) * cap);
+    //Parse Member defs
+    Token type;
+    while ((type = GetToken(t)).t != '}') {
+        //advance if struct declaration
+        if (strcmp(GetName(&t->s, type.name), "struct") == 0) {
+            type = GetToken(t);
         }
-        members[top++] = ParseMember(t);
-        m = GetToken(t, 0);
+        Token name = GetToken(t);
+        Token end;
 
-        //nested struct
-        if (m.t == TOKEN_STRUCT) {
-            head = ParseStruct(t, head);
-            
-            if (top + 1 > cap) {
-                cap *= 2;
-                members = (StructMember*)realloc(members, sizeof(StructMember) * cap);
-            }
-            
-            Token memname = GetToken(t, 0);
-            members[top++] = (StructMember){
-                .name = memname.start,
-                .nameSize = memname.size,
-                .t = {
-                    .basename = head->name,
-                    .nameSize = head->nameSize,
-                    .isPointer = 0,
-                    .isStruct = 1,
-                }
-            };
+        //TODO(ELI): Scheme to support pointer indirection
+        //Maybe add indirection count on the variable declartion? 
+        while ((end = GetToken(t)).t != ';') {
+            name = end;
+            end = GetToken(t);
         }
+
+        PushType(&t->s, type.name);
+        PushVariable(&t->s, type.name, name.name);
+        //sp_Printf("\t%s %s\n", GetName(&t->s, type.name), GetName(&t->s, name.name));
+        num++;
     }
 
-    new->name = name.start;
-    new->nameSize = name.size;
-    new->members = members;
-    new->numMembers = top;
-    new->next = head;
-    new->skipdef = 0;
+    PushStructDef(&t->s, name.name, start, num);
 
-    return new;
+    //Closing Bracket
+    return;
 }
 
 
-StructData* GetStructData(File* f, StructData* head) {
-
-    int fd = f->fd;
-    struct stat s;
-    fstat(fd, &s);
-
-    char* data = mmap(NULL, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    printf("size: %ld\n", s.st_size);
-
-    f->size = s.st_size;
-    f->data = data;
-
-    Token t;
-    Tokenizer tok = {
-        .data = data,
-        .At = data,
-        .size = (uint32_t)s.st_size
-    };
-
-    while ((t = GetToken(&tok, 0)).t != TOKEN_EOF) {
-        if (t.t == TOKEN_STRUCT) {
-            Token ignore = GetToken(&tok, 4);
-            if (memcmp(ignore.start, "META_INTROSPECT", ignore.size) == 0) {
-                head = ParseStruct(&tok, head);
-                //printf("struct found: %.*s %d\n", head->nameSize, head->name, head->isTypedef);
+void ParseFile(Tokenizer* t) {
+    Token c;
+    while ((c = GetToken(t)).t != TOKEN_EOF) {
+        if (c.t != TOKEN_ID) continue;
+        if (strcmp(&t->s.buffer.sbuf[c.name], "META_INTROSPECT") == 0) {
+            GetToken(t);
+            GetToken(t);
+            ParseStruct(t);
+        } else if (strcmp(GetName(&t->s, c.name), "META_BASE") == 0) {
+            GetToken(t);
+            GetToken(t);
+            //push type here
+            Token name;
+            while (1) {
+                name = GetToken(t);
+                if (name.t != TOKEN_UNION && 
+                    name.t != TOKEN_STRUCT && 
+                    name.t != TOKEN_TYPEDEF) break;
             }
-            ignore = GetToken(&tok, 5);
-            if (memcmp(ignore.start, "META_INTROSPECT", ignore.size) == 0) {
-                head = ParseStruct(&tok, head);
-                //printf("struct found: %.*s %d\n", head->nameSize, head->name, head->isTypedef);
-            }
-        }
-        if (memcmp(t.start, "META_BASE", t.size) == 0) {
-            Token name = GetToken(&tok, 0);
-            while (name.t != '{') name = GetToken(&tok, 0);
-            name = GetToken(&tok, 2); //one previous
-            StructData* new = malloc(sizeof(StructData));
-            new->next = head;
-            new->skipdef = 1;
-            new->name = name.start;
-            new->nameSize = name.size;
-            head = new;
+            sp_Printf("Base type: %s\n", GetName(&t->s, name.name));
+            PushType(&t->s, name.name);
         }
     }
 
-    return head;
-}
+    sp_Printf("string: ");
+    for (int i = 0; i < t->s.buffer.size; i++) {
+        if (!t->s.buffer.sbuf[i]) {
+            sp_Printf("\n\t");
+        } else {
+            sp_Printf("%c", t->s.buffer.sbuf[i]);
+        }
+    }
+    sp_Printf("\n");
 
-
-
-void FreeStructData(StructData* head, File f) {
-    StructData* prev = head;
-    StructData* curr = head->next;
-    while (curr) {
-        free(prev->members);
-        free(prev);
-
-        prev = curr;
-        curr = curr->next;
+    sp_Printf("types:\n");
+    for (int i = 0; i < t->s.tsize; i++) {
+        sp_Printf("\t%s\n", GetName(&t->s, t->s.typenames[i]));
     }
 
-    munmap(f.data, f.size);
-    close(f.fd);
+
+    sp_Printf("structs:\n");
+    for (int i = 0; i < t->s.ssize; i++) {
+        sp_Printf("\t%s %d\n", GetName(&t->s, t->s.structs[i].name), t->s.structs[i].length);
+        for (int j = 0; j < t->s.structs[i].length; j++) {
+            sp_Printf("\t\t%s\n", GetName(&t->s, t->s.variables[j + t->s.structs[i].start].name));
+        }
+    }
 }

@@ -145,23 +145,19 @@ void sb_rebuild_self(int argc, char* argv[], const char* srcpath) {
 
     sb_cmd* c = &(sb_cmd){0};
     sb_pick_compiler();
-    sb_cmd_push(c, compiler, srcpath, "-o", argv[0]);
+    sb_cmd_push(c, compiler, srcpath);
     sb_cmd_sync_and_reset(c);
 
     //delete obj file
-    //removed for this project because
-    //I've switched to clang rather than
-    //msvc
-
-    //char temp[MAX_PATH] = {0};
-    //int num = snprintf(temp, sizeof(temp), "%s", argv[0]);
-    //while (temp[num] != '.') num--;
-    //snprintf(&temp[num], sizeof(temp) - num, ".obj");
-    //printf("obj: %s\n", temp);
-    //BOOL result = DeleteFile(temp);
-    //if (!result) {
-    //    printf("Failed to delete obj: %ld\n", GetLastError());
-    //}
+    char temp[MAX_PATH] = {0};
+    int num = snprintf(temp, sizeof(temp), "%s", argv[0]);
+    while (temp[num] != '.') num--;
+    snprintf(&temp[num], sizeof(temp) - num, ".obj");
+    printf("%s\n", temp);
+    BOOL result = DeleteFile(temp);
+    if (!result) {
+        printf("Failed to delete obj: %ld\n", GetLastError());
+    }
     
     //delete .old
     //doesn't work, maybe later?
@@ -184,6 +180,38 @@ void sb_rebuild_self(int argc, char* argv[], const char* srcpath) {
 #include "unistd.h"
 #include "fcntl.h"
 #include "sys/stat.h"
+
+SB_FHANDLE sb_fopen(char* file, char* mode) {
+    return fopen(file, mode);
+}
+
+void sb_fclose(SB_FHANDLE h) { 
+    fclose(h);
+}
+
+//set up for now, do more research later,
+//maybe set up automatical console allocation
+//later?
+void sb_fprintf(SB_FHANDLE h, char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(h, format, args);
+    va_end(args);
+}
+
+// Super platform specific
+// definitely needs platform
+// stuff
+// Non-recursive
+void sb_mkdir(char* path) {
+    //full public
+    mkdir(path, S_IRWXU);
+}
+
+// Also platform specific, must implement
+void sb_rename(char* filepath, char* name) {
+    rename(filepath, name);  
+}
 
 int sb_should_rebuild(const char* srcpath, const char* binpath) {
     struct stat srcstat;
@@ -293,7 +321,9 @@ void sb_pick_compiler() {
 //TODO(ELI): Add clang and gcc versions for windows
 //TODO(ELI): Add more detection for linux
 #ifdef _WIN32
-    compiler = "clang.exe";
+    #ifdef _MSC_VER
+        compiler = "cl.exe";
+    #endif
 #else
         compiler = "cc";
 #endif

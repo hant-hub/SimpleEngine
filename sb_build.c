@@ -7,6 +7,11 @@
 int main(int argc, char* argv[]) {
     AUTO_REBUILD(argc, argv);
 
+    if (argc < 2) {
+        sb_fprintf(stdin, "Platform spec Required");
+        exit(-1);
+    }
+
     sb_cmd* c = &(sb_cmd){0};
 
     FILE* f = fopen("compile_flags.txt", "w+");
@@ -26,36 +31,33 @@ int main(int argc, char* argv[]) {
     fclose(f); 
     
 
-    //sb_cmd_push(c, "mkdir", "-p", "build");
-    //if (sb_cmd_sync_and_reset(c)) {
-    //    return -1;
-    //}
-
-    //sb_cmd_push(c, "mkdir", "-p", "build/shaders");
-    //if (sb_cmd_sync_and_reset(c)) {
-    //    return -1;
-    //}
+    sb_mkdir("build");
+    sb_mkdir("build/shaders");
 
     //metaprogramming layer
     sb_pick_compiler();
-    //sb_cmd_push(c, sb_compiler(), "-g", "-Werror=vla"); 
+    sb_cmd_push(c, sb_compiler(), "-g", "-Werror=vla"); 
 
-    //sb_cmd_push(c, "meta/meta.c");
-    //sb_cmd_push(c, "meta/tokenizer.c");
-    //sb_cmd_push(c, "meta/parser.c");
-    //sb_cmd_push(c, "meta/generate.c");
-    //sb_cmd_push(c, "-o", "build/preprocessor");
-    //if (sb_cmd_sync_and_reset(c)) {
-    //    return -1;
-    //}
+    sb_cmd_push(c, "meta/meta.c");
+    sb_cmd_push(c, "meta/token.c");
+    sb_cmd_push(c, "meta/parser.c");
+    sb_cmd_push(c, "meta/symboltable.c");
+    sb_cmd_push(c, "meta/generate.c");
 
-    ////run preprocessor
+    sb_cmd_push(c, "meta/platform/src/platform.c");
+    sb_cmd_push(c, sb_cmd_flag("Imeta/platform/include"));
+    sb_cmd_push(c, "-o", "build/preprocessor");
+    if (sb_cmd_sync_and_reset(c)) {
+        return -1;
+    }
 
-    //sb_cmd_push(c, "./build/preprocessor");
-    //if (sb_cmd_sync_and_reset(c)) {
-    //    return -1;
-    //}
-    //return 0;
+    //run preprocessor
+
+    sb_cmd_push(c, "./build/preprocessor");
+    if (sb_cmd_sync_and_reset(c)) {
+        return -1;
+    }
+    return 0;
 
     //sb_cmd_push(c, "glslc", "shaders/test.glsl.vert", "-o", "build/shaders/vert.spv");
     //if (sb_cmd_sync_and_reset(c)) {
@@ -76,10 +78,11 @@ int main(int argc, char* argv[]) {
 
 
     if (strcmp(argv[1], "wayland") == 0) {
-        sb_cmd_push(c, "src/platform/WAYLAND/platform.c", "-D", "WAYLAND"); //TODO(ELI): Make switch with platform
+        sb_cmd_push(c, "-c");
         sb_cmd_push(c, "src/math/math.c");
         sb_cmd_push(c, "src/util.c");
         sb_cmd_push(c, "src/render/vulkan.c");
+        sb_cmd_push(c, "src/platform/WAYLAND/platform.c", "-D", "WAYLAND"); //TODO(ELI): Make switch with platform
         sb_cmd_push(c, "-lwayland-client");
         sb_cmd_push(c, "-lrt");
         sb_cmd_push(c, "-lc");
@@ -100,7 +103,11 @@ int main(int argc, char* argv[]) {
     sb_cmd_push(c, "-D SE_ASSERT");
     sb_cmd_push(c, "-D SE_DEBUG_VULKAN");
 
-    sb_cmd_push(c, "-o build/test.exe");
+    if (strcmp(argv[1], "wayland") == 0) {
+        sb_cmd_push(c, "-o", "build/test");
+    } else {
+        sb_cmd_push(c, "-o", "build/test.exe");
+    }
     
     if (sb_cmd_sync_and_reset(c)) {
         return -1;

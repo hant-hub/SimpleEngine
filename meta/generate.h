@@ -1,11 +1,12 @@
 #ifndef GENERATE_H
 #define GENERATE_H
-#include "parser.h"
 
-#include <stdio.h>
+#include "platform/include/platform.h"
+#include "symboltable.h"
 
-void GenerateStructDefHeader(FILE* out, StructData* head);
-void GenerateStructDefSource(FILE* out, StructData* head);
+void GenerateTypes(sp_file f, SymbolTable* s);
+void GenerateStructData(sp_file f, SymbolTable* s);
+
 
 
 #endif
