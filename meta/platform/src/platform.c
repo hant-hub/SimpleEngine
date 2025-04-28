@@ -28,7 +28,7 @@ sp_file sp_OpenFile(const char* file, sp_file_mode mode, sp_file_flags flags, sp
     }
 
     if (flags & spf_TRUNC) {
-        flag |= O_APPEND;
+        flag |= O_TRUNC;
     }
 
     if (flags & spf_CREAT) {
@@ -133,4 +133,12 @@ void* sp_HeapCalloc(uint64_t size) {
 
 void sp_HeapFree(void* p) {
     free(p);
+}
+
+void sp_Chdir(const char* dir) {
+    chdir(dir);
+}
+
+void sp_Mkdir(const char* dir) {
+    mkdir(dir, 0664);
 }

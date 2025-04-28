@@ -1,11 +1,15 @@
-#ifndef SE_GENERATED_DEF_H
-#define SE_GENERATED_DEF_H
-#include <math/vector.h>
+#ifndef SE_GENERATED_STRUCT_H
+#define SE_GENERATED_STRUCT_H
+
 #include <platform/wayland/wayland.h>
-#include <util.h>
-#include <generated/generated_static.h>
+#include <math/vector.h>
+
+#include "generated_static.h"
+#include "generated_types.h"
+
 static SE_struct_member Meta_Def_vert[] = {
-	{Meta_Type_SE_v2f, "pos", (u64)&((( vert *)0)->pos), (u64)sizeof((( vert *)0)->pos)},
-	{Meta_Type_SE_v3f, "uv", (u64)&((( vert *)0)->uv), (u64)sizeof((( vert *)0)->uv)},
+	{Meta_Type_SE_v2f, "pos", (u64)&(((vert *)0)->pos), (u64)sizeof(SE_v2f)},
+	{Meta_Type_SE_v3f, "uv", (u64)&(((vert *)0)->uv), (u64)sizeof(SE_v3f)},
 };
+
 #endif

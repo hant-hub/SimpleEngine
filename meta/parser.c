@@ -76,27 +76,27 @@ void ParseFile(Tokenizer* t) {
         }
     }
 
-    sp_Printf("string: ");
-    for (int i = 0; i < t->s.buffer.size; i++) {
-        if (!t->s.buffer.sbuf[i]) {
-            sp_Printf("\n\t");
-        } else {
-            sp_Printf("%c", t->s.buffer.sbuf[i]);
-        }
-    }
-    sp_Printf("\n");
+    //sp_Printf("string: ");
+    //for (int i = 0; i < t->s.buffer.size; i++) {
+    //    if (!t->s.buffer.sbuf[i]) {
+    //        sp_Printf("\n\t");
+    //    } else {
+    //        sp_Printf("%c", t->s.buffer.sbuf[i]);
+    //    }
+    //}
+    //sp_Printf("\n");
 
-    sp_Printf("types:\n");
-    for (int i = 0; i < t->s.tsize; i++) {
-        sp_Printf("\t%s\n", GetName(&t->s, t->s.typenames[i]));
-    }
+    //sp_Printf("types:\n");
+    //for (int i = 0; i < t->s.tsize; i++) {
+    //    sp_Printf("\t%s\n", GetName(&t->s, t->s.typenames[i]));
+    //}
 
 
-    sp_Printf("structs:\n");
-    for (int i = 0; i < t->s.ssize; i++) {
-        sp_Printf("\t%s %d\n", GetName(&t->s, t->s.structs[i].name), t->s.structs[i].length);
-        for (int j = 0; j < t->s.structs[i].length; j++) {
-            sp_Printf("\t\t%s\n", GetName(&t->s, t->s.variables[j + t->s.structs[i].start].name));
-        }
-    }
+    //sp_Printf("structs:\n");
+    //for (int i = 0; i < t->s.ssize; i++) {
+    //    sp_Printf("\t%s %d\n", GetName(&t->s, t->s.structs[i].name), t->s.structs[i].length);
+    //    for (int j = 0; j < t->s.structs[i].length; j++) {
+    //        sp_Printf("\t\t%s\n", GetName(&t->s, t->s.variables[j + t->s.structs[i].start].name));
+    //    }
+    //}
 }

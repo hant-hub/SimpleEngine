@@ -1,3 +1,4 @@
+#include "generated/generated_types.h"
 #include "platform.h"
 #include "util.h"
 #include <render/vertex.h>
@@ -23,7 +24,7 @@ SE_vertex_spec SE_CreateVertSpecInline(SE_mem_arena* a, SE_struct_member* mem, u
         totalsize += mem[i].size;
 
         switch (mem[i].type) {
-            case Meta_Type_float:
+            case Meta_Type_f32:
                 {
                     SE_Log("float: %s\n", mem[i].name);
                     spec.attrs[i].format = VK_FORMAT_R32_SFLOAT;

@@ -69,6 +69,11 @@ void* sp_HeapRealloc(void* p, uint64_t size);
 //is silly, so I just made it have the same api as
 //Malloc, which is what it always should have been
 void* sp_HeapCalloc(uint64_t size);
-
 void sp_HeapFree(void* p);
+
+
+void sp_Chdir(const char* dir);
+void sp_Mkdir(const char* dir);
+
+
 #endif

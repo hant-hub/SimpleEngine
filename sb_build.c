@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
     if (sb_cmd_sync_and_reset(c)) {
         return -1;
     }
-    return 0;
+    //return 0;
 
     //sb_cmd_push(c, "glslc", "shaders/test.glsl.vert", "-o", "build/shaders/vert.spv");
     //if (sb_cmd_sync_and_reset(c)) {
