@@ -64,7 +64,9 @@ static void SE_top_configure(void *data, struct xdg_toplevel *xdg_toplevel,
                          struct wl_array *states) {
 
     if ((width > 0) && (height > 0)) {
+        SE_Log("Resize: (%d, %d)\n", width, height);
         SE_window* win = data;
+        if (win->width == width && win->height == height) return;
         win->width = width;
         win->height = height;
         resizeReady = TRUE;

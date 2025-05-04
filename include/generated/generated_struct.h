@@ -8,8 +8,8 @@
 #include "generated_types.h"
 
 static SE_struct_member Meta_Def_vert[] = {
-	{Meta_Type_SE_v2f, "pos", (u64)&(((vert *)0)->pos), (u64)sizeof(SE_v2f)},
-	{Meta_Type_SE_v3f, "uv", (u64)&(((vert *)0)->uv), (u64)sizeof(SE_v3f)},
+	{Meta_Type_SE_v3f, "pos", (u64)&(((vert *)0)->pos), (u64)sizeof(SE_v3f)},
+	{Meta_Type_SE_v2f, "uv", (u64)&(((vert *)0)->uv), (u64)sizeof(SE_v2f)},
 };
 
 #endif

@@ -21,6 +21,29 @@ typedef struct SE_sub_pass {
     u32 depthAttachment;
 } SE_sub_pass;
 
+/*
+ * INFO(ELI): For now this represents a
+ * subpass. Future render pass presets will contain
+ * a number of these in addition to attachments.
+ * 
+ * The goal is an API for constructing pipelines which
+ * is similar to that of sb.h build (version 2).
+ */
+typedef enum SE_pass_type {
+    SE_NO_DEPTH_OPAQUE_PASS,
+    SE_OPAQUE_PASS,
+} SE_pass_type;
+
+typedef enum SE_attachment_type {
+    SE_SWAPCHAIN_IMG,
+    SE_DEPTH_ATTACHMENT,
+    SE_COLOR_ATTACHMENT,
+} SE_attachment_type;
+
+typedef struct SE_attachment_request {
+    SE_attachment_type t;
+} SE_attachment_request;
+
 typedef struct SE_attachment_refs {
     VkAttachmentDescription* descrip;
     VkAttachmentReference* ref;
@@ -30,8 +53,9 @@ typedef struct SE_attachment_refs {
 typedef struct SE_attachments {
     VkImage* img;
     VkImageView* view;
+
+    SE_resource_arena backingmem;
     u32 num;
-    u32 cap;
 } SE_attachments;
 
 typedef struct SE_shaders {
@@ -84,6 +108,7 @@ SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* fr
 SE_sync_objs SE_CreateSyncObjs(SE_render_context* r);
 
 SE_render_pipeline SE_CreatePipeline(SE_mem_arena a, SE_render_context* r, SE_vertex_spec* vspec, SE_shaders* s);
+void SE_CreateFrameBuffers(SE_render_context* r, SE_render_pipeline* p);
 
 void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_sync_objs* s, SE_resource_arena* vert);
 

@@ -28,8 +28,8 @@ typedef struct SE_window {
 } SE_window;
 
 META_INTROSPECT() typedef struct vert {
-    SE_v2f pos;
-    SE_v3f uv;
+    SE_v3f pos;
+    SE_v2f uv;
 } vert;
 
 

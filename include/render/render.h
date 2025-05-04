@@ -5,6 +5,17 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
+typedef struct SE_render_heap {
+    VkMemoryPropertyFlagBits props;
+    u64 top;
+    u64 size;
+} SE_render_heap;
+
+typedef struct SE_render_memory {
+    SE_render_heap* heaps;
+    u32 numheaps;
+} SE_render_memory;
+
 //TODO(ELI): API independent way to represent
 //Rendering pipeline, ie: renderpasses, subpasses,
 //attachments
@@ -51,6 +62,7 @@ typedef struct SE_render_context {
     } Queues;
 
     SE_swapchain s;
+    SE_render_memory m;
 } SE_render_context;
 
 //Heap allocates a scratch arena

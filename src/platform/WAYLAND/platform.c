@@ -4,10 +4,12 @@
 #include <generated/generated_struct.h>
 
 #include <fcntl.h>
+#include <dlfcn.h>
 #include <sys/mman.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <unistd.h>
+
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_wayland.h>
 #include <wayland-client-core.h>
@@ -17,6 +19,8 @@
 #include <platform.h>
 #include <render/render.h>
 #include <render/pipeline.h>
+
+#include <user.h>
 
 #include "math/mat.h"
 
@@ -42,7 +46,7 @@ int allocFile(u32 size) {
 
 
 const char* SE_PlatformInstanceExtensions[] = {
-    VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
+    VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
 };
 const u32 SE_PlatformInstanceExtensionCount 
                     = ASIZE(SE_PlatformInstanceExtensions);
@@ -105,28 +109,6 @@ int main(int argc, char* argv[]) {
 
    SE_Log("Title and AppID Set To: %s\n", title);
 
-
-   //TODO(ELI): Remove shm when Vulkan Swapchain,
-   //framebuffers are ready
-
-   //temporary use shm to attach buffer
-   //const int width = 800;
-   //const int height = 600;
-   //const int stride = width * 4;
-   //const int size = stride * height;
-   //int fd = allocFile(size);  
-   //struct wl_shm_pool* pool = wl_shm_create_pool(w.shm, fd, size);
-   //struct wl_buffer* buf = wl_shm_pool_create_buffer(pool, 0, width, height, stride, WL_SHM_FORMAT_XRGB8888);
-
-   //void* data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-   //SE_memset(data, 128, size);
-   //munmap(data, size);
- 
-   //wl_surface_commit(w.wsurf);
-
-   //wl_surface_attach(w.wsurf, buf, 0, 0);
-   //wl_surface_damage(w.wsurf, 0, 0, UINT32_MAX, UINT32_MAX);
-
    wl_surface_commit(w.wsurf);
    wl_display_roundtrip(w.display);
    wl_surface_commit(w.wsurf);
@@ -137,32 +119,26 @@ int main(int argc, char* argv[]) {
    SE_shaders s = SE_LoadShaders(&r, "shaders/vert.spv", "shaders/frag.spv");
 
    SE_mem_arena config = SE_ArenaCreateHeap(KB(10));
+
    SE_vertex_spec sv = SE_CreateVertSpecInline(&config, Meta_Def_vert, ASIZE(Meta_Def_vert));
    SE_render_pipeline p = SE_CreatePipeline(SE_ArenaCreateHeap(MB(10)), &r, &sv, &s);
 
    SE_ArenaDestroyHeap(config);
 
 
-   SE_render_memory mem = SE_CreateHeapTrackers(&r);
-   SE_resource_arena v = SE_CreateResourceTrackerBuffer(&r, &mem,VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                                                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+   SE_resource_arena v = SE_CreateResourceTrackerBuffer(&r, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                                                  KB(2));
-   void* data;
-   vkMapMemory(r.l, v.devMem, 0, KB(1), 0, &data);
-   vert* vdata = (vert*)data;
-   vdata[0] = (vert) {
-       .pos = {-0.5, 0.5},
-       .uv = {1, 0, 0},
+   vert vdata[] = { 
+       (vert) { .pos = {-0.6, 0.5, 0.2}, .uv = {0, 1}, },
+       (vert) { .pos = {0.3, -0.5, 0.2}, .uv = {0, 1}, },
+       (vert) { .pos = {0.8, 0.5,  0.2},  .uv = {0, 1}, },
+       (vert) { .pos = {-0.5, 0.5, 0.4}, .uv = {1, 0}, },
+       (vert) { .pos = {0,   -0.5, 0.4},   .uv = {1, 0}, },
+       (vert) { .pos = {0.5,  0.5, 0.4},  .uv = {1, 0}, },
    };
-   vdata[1] = (vert) {
-       .pos = {0, -0.5},
-       .uv = {0, 1, 0},
-   };
-   vdata[2] = (vert) {
-       .pos = {0.5, 0.5},
-       .uv = {0, 0, 1},
-   };
-   vkUnmapMemory(r.l, v.devMem);
+   SE_render_buffer vbuf = SE_CreateBuffer(&v, sizeof(vdata));
+   SE_TransferMemory(&r, vbuf, vdata, sizeof(vdata));
 
    SE_sync_objs sync = SE_CreateSyncObjs(&r);
 
@@ -176,20 +152,25 @@ int main(int argc, char* argv[]) {
    };
 
    SE_m4f out = SE_MatMat4f(i, t); 
-   printf("Mat4: \t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n", 
+   SE_Log("Mat4: \t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n", 
            out.a[0], out.a[4], out.a[8],  out.a[12], 
            out.a[1], out.a[5], out.a[9],  out.a[13], 
            out.a[2], out.a[6], out.a[10], out.a[14], 
            out.a[3], out.a[7], out.a[11], out.a[15] 
          );
+    
 
+   void* game = dlopen("./init.so", RTLD_NOW);
+   SE_user_state* user = dlsym(game, "state");
+   //SE_Log("0x%lx, 0x%lx\n", game, user);
 
-   //temporary loop
+   user->init(&w);
    while (!w.quit) {
        wl_display_roundtrip(w.display);
        SE_DrawFrame(&w, &r, &p, &sync, &v);
    }
 
+   dlclose(game);
    return 0;
 }
 

@@ -8,9 +8,19 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
+#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_wayland.h>
+#include <wayland-client-core.h>
+#include <wayland-client-protocol.h>
+
 void* SE_HeapAlloc(u64 size) {
     return malloc(size);
 }
+
+void* SE_HeapRealloc(void* p, u64 size) {
+    return realloc(p, size);
+}
+
 void  SE_HeapFree(void* p) {
     free(p);
 }

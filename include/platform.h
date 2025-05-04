@@ -23,6 +23,7 @@ typedef int SE_window;
 #endif
 
 void* SE_HeapAlloc(u64 size);
+void* SE_HeapRealloc(void* p, u64 size);
 void  SE_HeapFree(void* p);
 
 VkSurfaceKHR SE_CreateVKSurface(SE_window* win, VkInstance inst);

@@ -59,15 +59,15 @@ int main(int argc, char* argv[]) {
     }
     //return 0;
 
-    //sb_cmd_push(c, "glslc", "shaders/test.glsl.vert", "-o", "build/shaders/vert.spv");
-    //if (sb_cmd_sync_and_reset(c)) {
-    //    return -1;
-    //}
+    sb_cmd_push(c, "glslc", "shaders/test.glsl.vert", "-o", "build/shaders/vert.spv");
+    if (sb_cmd_sync_and_reset(c)) {
+        return -1;
+    }
 
-    //sb_cmd_push(c, "glslc", "shaders/test.glsl.frag", "-o", "build/shaders/frag.spv");
-    //if (sb_cmd_sync_and_reset(c)) {
-    //    return -1;
-    //}
+    sb_cmd_push(c, "glslc", "shaders/test.glsl.frag", "-o", "build/shaders/frag.spv");
+    if (sb_cmd_sync_and_reset(c)) {
+        return -1;
+    }
 
 
     sb_cmd_push(c, sb_compiler(), "-std=c99", "-pedantic", "-g", "-Iinclude", "-Werror=vla");
@@ -109,6 +109,25 @@ int main(int argc, char* argv[]) {
         sb_cmd_push(c, "-o", "build/test.exe");
     }
     
+    if (sb_cmd_sync_and_reset(c)) {
+        return -1;
+    }
+
+    sb_cmd_push(c, sb_compiler(), "-std=c99", "-pedantic", "-g", "-Iinclude", "-Werror=vla");
+    if (strcmp(argv[1], "wayland") == 0) {
+        sb_cmd_push(c, "-D", "WAYLAND");
+    } else if (strcmp(argv[1], "win32") == 0) {
+        sb_cmd_push(c, "-D", "WIN32");
+    }
+    sb_cmd_push(c, "tests/init.c");
+    sb_cmd_push(c, "-Ilib/vulkan/include");
+    sb_cmd_push(c, "-Llib/vulkan/Lib");
+//    sb_cmd_push(c, "src/render/vulkan.c");
+    sb_cmd_push(c, "-isystem");
+    sb_cmd_push(c, "-fPIC");
+    sb_cmd_push(c, "-shared");
+    sb_cmd_push(c, "-o", "build/init.so");
+
     if (sb_cmd_sync_and_reset(c)) {
         return -1;
     }

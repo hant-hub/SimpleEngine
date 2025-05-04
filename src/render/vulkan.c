@@ -8,6 +8,7 @@
 #include "pipeline.c"
 #include "memory.c"
 #include "vertex.c"
+#include "utils.c"
 
 static const char* InstanceExtensions[] = {
     VK_KHR_SURFACE_EXTENSION_NAME
@@ -24,7 +25,8 @@ static const u32 ValidationLayerCount = ASIZE(ValidationLayers);
 
 
 static const char* DeviceExtensions[] = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    //VK_KHR_SEPARATE_DEPTH_STENCIL_LAYOUTS_EXTENSION_NAME,
 };
 
 static const u32 DeviceExtensionCount = ASIZE(DeviceExtensions);
@@ -398,7 +400,7 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
         REQUIRE_ZERO(vkAllocateCommandBuffers(rc.l, &cmdAlloc, &rc.cmd));
     }
 
-
+    rc.m = SE_CreateHeapTrackers(&rc);
     SE_ArenaDestroyHeap(a);
     return rc;
 }

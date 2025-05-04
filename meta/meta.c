@@ -69,5 +69,13 @@ int main(int argc, char* argv[]) {
 
     sp_CloseFile(typefile);
     sp_CloseFile(structfile);
+
+    sp_HeapFree(tok.s.buffer.sbuf);
+    sp_HeapFree(tok.s.structs);
+    sp_HeapFree(tok.s.typenames);
+    sp_HeapFree(tok.s.values);
+    sp_HeapFree(tok.s.types);
+    sp_HeapFree(tok.s.idx);
+    sp_HeapFree(tok.s.variables);
     return 0;
 }
