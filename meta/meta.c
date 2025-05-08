@@ -6,8 +6,8 @@
 #include "string.h"
 
 char* files[] = {
-    "platform/wayland/wayland.h",
     "math/vector.h",
+    "../tests/init.h",
 };
 
 char* BaseTypes[] = {

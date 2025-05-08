@@ -53,7 +53,7 @@ static VkImageCreateInfo img_presets[] = {
 
 static VkImageViewCreateInfo view_presets[] = {
     //SE_DEPTH_ATTACHMENT -----------------------------
-    (VkImageViewCreateInfo){
+    {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
         .subresourceRange = {

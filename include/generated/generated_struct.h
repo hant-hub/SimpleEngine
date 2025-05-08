@@ -1,8 +1,8 @@
 #ifndef SE_GENERATED_STRUCT_H
 #define SE_GENERATED_STRUCT_H
 
-#include <platform/wayland/wayland.h>
 #include <math/vector.h>
+#include <../tests/init.h>
 
 #include "generated_static.h"
 #include "generated_types.h"

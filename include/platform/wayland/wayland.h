@@ -27,10 +27,5 @@ typedef struct SE_window {
     struct wl_shm* shm;
 } SE_window;
 
-META_INTROSPECT() typedef struct vert {
-    SE_v3f pos;
-    SE_v2f uv;
-} vert;
-
 
 #endif

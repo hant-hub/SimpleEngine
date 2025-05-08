@@ -1,7 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "render/vertex.h"
-#include <generated/generated_struct.h>
 
 #include <fcntl.h>
 #include <dlfcn.h>
@@ -115,33 +114,25 @@ int main(int argc, char* argv[]) {
 
 
    //init Vulkan
-   SE_render_context r = SE_CreateRenderContext(&w);
-   SE_shaders s = SE_LoadShaders(&r, "shaders/vert.spv", "shaders/frag.spv");
+   SE api = (SE) {
+        .w = &w,
 
-   SE_mem_arena config = SE_ArenaCreateHeap(KB(10));
+       //render
+       .LoadShaders = SE_LoadShaders,
+       .CreateVertSpecInline = SE_CreateVertSpecInline,
+       .CreatePipeline = SE_CreatePipeline,
+       .CreateResourceTrackerBuffer = SE_CreateResourceTrackerBuffer,
+       .CreateBuffer = SE_CreateBuffer,
+       .TransferMemory = SE_TransferMemory,
+       .CreateSyncObjs = SE_CreateSyncObjs,
+       .DrawFrame = SE_DrawFrame,
 
-   SE_vertex_spec sv = SE_CreateVertSpecInline(&config, Meta_Def_vert, ASIZE(Meta_Def_vert));
-   SE_render_pipeline p = SE_CreatePipeline(SE_ArenaCreateHeap(MB(10)), &r, &sv, &s);
+       //memory
+       .ArenaCreateHeap = SE_ArenaCreateHeap,
+       .ArenaDestroyHeap = SE_ArenaDestroyHeap,
 
-   SE_ArenaDestroyHeap(config);
-
-
-   SE_resource_arena v = SE_CreateResourceTrackerBuffer(&r, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                                 KB(2));
-   vert vdata[] = { 
-       (vert) { .pos = {-0.6, 0.5, 0.2}, .uv = {0, 1}, },
-       (vert) { .pos = {0.3, -0.5, 0.2}, .uv = {0, 1}, },
-       (vert) { .pos = {0.8, 0.5,  0.2},  .uv = {0, 1}, },
-       (vert) { .pos = {-0.5, 0.5, 0.4}, .uv = {1, 0}, },
-       (vert) { .pos = {0,   -0.5, 0.4},   .uv = {1, 0}, },
-       (vert) { .pos = {0.5,  0.5, 0.4},  .uv = {1, 0}, },
    };
-   SE_render_buffer vbuf = SE_CreateBuffer(&v, sizeof(vdata));
-   SE_TransferMemory(&r, vbuf, vdata, sizeof(vdata));
-
-   SE_sync_objs sync = SE_CreateSyncObjs(&r);
-
+   api.r = SE_CreateRenderContext(&w);
 
    SE_m4f i = SE_IdentityM4f();
    SE_m4f t = (SE_m4f){
@@ -152,22 +143,24 @@ int main(int argc, char* argv[]) {
    };
 
    SE_m4f out = SE_MatMat4f(i, t); 
-   SE_Log("Mat4: \t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n", 
-           out.a[0], out.a[4], out.a[8],  out.a[12], 
-           out.a[1], out.a[5], out.a[9],  out.a[13], 
-           out.a[2], out.a[6], out.a[10], out.a[14], 
-           out.a[3], out.a[7], out.a[11], out.a[15] 
-         );
+   //SE_Log("Mat4: \t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n\t%f %f %f %f\n", 
+   //        out.a[0], out.a[4], out.a[8],  out.a[12], 
+   //        out.a[1], out.a[5], out.a[9],  out.a[13], 
+   //        out.a[2], out.a[6], out.a[10], out.a[14], 
+   //        out.a[3], out.a[7], out.a[11], out.a[15] 
+   //      );
     
 
    void* game = dlopen("./init.so", RTLD_NOW);
+   perror("load:");
    SE_user_state* user = dlsym(game, "state");
-   //SE_Log("0x%lx, 0x%lx\n", game, user);
+   api.user = *user;
 
-   user->init(&w);
+
+   user->init(&api);
    while (!w.quit) {
        wl_display_roundtrip(w.display);
-       SE_DrawFrame(&w, &r, &p, &sync, &v);
+       user->draw(&api);
    }
 
    dlclose(game);
