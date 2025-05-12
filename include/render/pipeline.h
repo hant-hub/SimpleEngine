@@ -10,15 +10,17 @@
 
 typedef struct SE_render_pass {
     VkRenderPass rp;
-    u32 numSubPasses;
-    u32 startidx;
 } SE_render_pass;
 
+
+typedef enum SE_pass_type {
+    SE_OPAQUE_NO_DEPTH,
+} SE_pass_type;
+
 typedef struct SE_sub_pass {
-    VkSubpassDescription descrip;
-    VkSubpassDependency dep;
-    u32 colorAttachment;
-    u32 depthAttachment;
+    SE_pass_type type;
+    u32 start;
+    u32 num; //If Num == 0 that signifies a new renderpass
 } SE_sub_pass;
 
 /*
@@ -29,34 +31,23 @@ typedef struct SE_sub_pass {
  * The goal is an API for constructing pipelines which
  * is similar to that of sb.h build (version 2).
  */
-typedef enum SE_pass_type {
-    SE_NO_DEPTH_OPAQUE_PASS,
-    SE_OPAQUE_PASS,
-} SE_pass_type;
+
+typedef enum SE_attach_usage {
+    SE_attach_color,
+    SE_attach_depth,
+    SE_attach_input,
+} SE_attach_usage;
+
+typedef struct SE_subpass_attach {
+    SE_attach_usage usage;
+    u32 attach_idx;
+} SE_subpass_attach;
 
 typedef enum SE_attachment_type {
-    SE_SWAPCHAIN_IMG,
-    SE_DEPTH_ATTACHMENT,
-    SE_COLOR_ATTACHMENT,
+    SE_SwapImg,
+    SE_DepthImg,
+    SE_ColorImg,
 } SE_attachment_type;
-
-typedef struct SE_attachment_request {
-    SE_attachment_type t;
-} SE_attachment_request;
-
-typedef struct SE_attachment_refs {
-    VkAttachmentDescription* descrip;
-    VkAttachmentReference* ref;
-    u32 num;
-} SE_attachment_refs;
-
-typedef struct SE_attachments {
-    VkImage* img;
-    VkImageView* view;
-
-    SE_resource_arena backingmem;
-    u32 num;
-} SE_attachments;
 
 typedef struct SE_shaders {
     VkShaderModule vert;
@@ -65,34 +56,25 @@ typedef struct SE_shaders {
     VkPipelineLayout layout;
 } SE_shaders;
 
-typedef struct SE_sub_pass_config {
-    VkSubpassDescription des;
-    VkSubpassDependency dep;
-} SE_sub_pass_config;
-
-typedef struct SE_pass_config {
-   u32 numSubPasses; 
-   u32 numAttachments;
-   SE_sub_pass_config* subconfigs;
-   VkAttachmentDescription* attachments;
-} SE_pass_config;
-
 typedef struct SE_render_pipeline {
     //backing memory for the pipeline
     SE_mem_arena mem;
+    SE_resource_arena backingmem;
 
     VkPipeline* pipelines;
     SE_shaders* shaders;
 
     VkFramebuffer* framebuffers;
-
     SE_render_pass* rpasses;
-    SE_sub_pass* subpasses;
 
-    SE_attachment_refs refs;
-    SE_attachments attachments;
+    //Attachments
+    VkImage* imgs;
+    VkImageView* views;
+
+    u32 num_attach;
 
     u32 numframebuffers;
+    u32 numSubpasses;
     u32 numPasses;
 } SE_render_pipeline;
 
@@ -103,13 +85,36 @@ typedef struct SE_sync_objs {
     u32 numFrames;
 } SE_sync_objs;
 
+typedef struct SE_render_pipeline_info {
+
+    SE_attachment_type* attachments; 
+    u32 atsize;
+    u32 atcap;
+
+    SE_shaders* shaders;
+    u32 ssize;
+    u32 scap;
+
+    SE_sub_pass* passes;
+    u32 psize;
+    u32 pcap;
+
+    SE_subpass_attach* attach_refs;
+    u32 rsize;
+    u32 rcap;
+
+} SE_render_pipeline_info;
+
+
 
 SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* frag);
 SE_sync_objs SE_CreateSyncObjs(SE_render_context* r);
 
-SE_render_pipeline SE_CreatePipeline(SE_mem_arena a, SE_render_context* r, SE_vertex_spec* vspec, SE_shaders* s);
-void SE_CreateFrameBuffers(SE_render_context* r, SE_render_pipeline* p);
+SE_render_pipeline_info SE_BeginPipelineCreation(void);
+void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 target, SE_shaders shader);
+SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_render_pipeline_info* info);
 
+void SE_CreateFrameBuffers(SE_render_context* r, SE_render_pipeline* p);
 void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_sync_objs* s, SE_resource_arena* vert);
 
 #endif

@@ -120,10 +120,12 @@ int main(int argc, char* argv[]) {
        //render
        .LoadShaders = SE_LoadShaders,
        .CreateVertSpecInline = SE_CreateVertSpecInline,
-       .CreatePipeline = SE_CreatePipeline,
        .CreateResourceTrackerBuffer = SE_CreateResourceTrackerBuffer,
        .CreateBuffer = SE_CreateBuffer,
        .TransferMemory = SE_TransferMemory,
+       .BeginPipelineCreation = SE_BeginPipelineCreation,
+       .OpqaueNoDepthPass = SE_OpqaueNoDepthPass,
+       .EndPipelineCreation = SE_EndPipelineCreation,
        .CreateSyncObjs = SE_CreateSyncObjs,
        .DrawFrame = SE_DrawFrame,
 
