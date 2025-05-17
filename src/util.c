@@ -57,6 +57,8 @@ SE_alloc_func(SE_StaticArenaAlloc) {
 }
 
 SE_mem_arena* SE_HeapArenaCreate(u64 size) {
-    size += sizeof(SE_mem_arena);
-    return SE_HeapAlloc(size);
+    SE_mem_arena* m = SE_HeapAlloc(size + sizeof(SE_mem_arena));
+    m->cap = size;
+    m->size = 0;
+    return m;
 }

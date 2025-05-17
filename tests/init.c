@@ -63,10 +63,10 @@ SE_INIT_FUNC(Init) {
     SE_render_pipeline_info p = s->BeginPipelineCreation(); 
     s->OpqaueNoDepthPass(&p, 0, sh);
 
+    printf("RenderPass Info:\n");
     for (u32 i = 0; i < p.psize; i++) {
-        printf("(%d, %d) ", p.passes[i].start, p.passes[i].num);
+        printf("\t(%d, %d)\n", p.passes[i].start, p.passes[i].num);
     }
-    printf("\n");
 
     SE_render_pipeline pipe = s->EndPipelineCreation(&s->r, &p);
 }

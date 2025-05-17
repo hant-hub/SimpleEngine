@@ -116,7 +116,7 @@ SE_swapchain SE_CreateSwapChain(SE_allocator* a, SE_render_context* r, SE_window
     SE_swapchain s = {0};
     //SwapChain
     
-    SE_mem_arena* t;
+    SE_mem_arena* t = NULL;
     if (!a) {
         t = SE_HeapArenaCreate(4096 * 5); 
         a->ctx = &t;
