@@ -1,6 +1,7 @@
 #ifndef SE_RENDER_H
 #define SE_RENDER_H
 
+#include "util.h"
 #include <platform.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
@@ -71,7 +72,7 @@ SE_render_context SE_CreateRenderContext(SE_window* win);
 //Either pass in a preallocated memory arena
 //Or pass Null and an arena will be automatically
 //allocated on the Heap for scratch work
-SE_swapchain SE_CreateSwapChain(SE_mem_arena* a, SE_render_context* r, SE_window* win, SE_swapchain* old);
+SE_swapchain SE_CreateSwapChain(SE_allocator* a, SE_render_context* r, SE_window* win, SE_swapchain* old);
 
 
 #endif

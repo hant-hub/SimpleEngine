@@ -2,7 +2,6 @@
 #include <util.h>
 
 
-
 Bool32 SE_strcmp(const char* s1, const char* s2) {
     while (*s1 && *s2 && (*s1 == *s2)) {
         ++s1;
@@ -32,46 +31,32 @@ int SE_strlen(const char* str) {
     return str - p; 
 }
 
-SE_mem_arena SE_ArenaCreateHeap(u32 size) {
-    //align to 8 byte boundary
-    size = (size + sizeof(u64)) & ~((u64)7);
-    SE_mem_arena a = {
-        .top = 0,
-        .size = size,
-        .data = SE_HeapAlloc(size)
-    };
 
-    return a;
-}
 
-SE_mem_arena SE_ArenaCreateArena(SE_mem_arena* a, u32 size) {
-    size = (size + sizeof(u64)) & ~((u64)7);
-    SE_mem_arena o = {
-        .top = 0,
-        .size = size,
-        .data = SE_ArenaAlloc(a, size)
-    };
 
-    return o;
-}
 
-void SE_ArenaDestroyHeap(SE_mem_arena a) {
-    SE_HeapFree(a.data);
-}
-
-void* SE_ArenaAlloc(SE_mem_arena* a, u64 size) {
-    size = (size + sizeof(u64)) & ~((u64)7);
-    
-    if (size + a->top > a->size) {
-        return 0;
+SE_alloc_func(SE_StaticArenaAlloc) {
+    SE_mem_arena* mem = ctx; 
+    if (newsize == 0) {
+        //free
+        //no op for an arena
+        return NULL;
     }
 
-    void* out = &a->data[a->top];
-    a->top += size;
+    //malloc
+    if (mem->size + newsize > mem->cap) return NULL;
+    void* new = &mem->data[mem->size];
+    mem->size += newsize;
 
-    return out;
+    if (ptr) {
+        //realloc
+        SE_memcpy(new, ptr, oldsize);
+    }
+
+    return new;
 }
 
-void SE_ArenaReset(SE_mem_arena* a) {
-    a->top = 0;
+SE_mem_arena* SE_HeapArenaCreate(u64 size) {
+    size += sizeof(SE_mem_arena);
+    return SE_HeapAlloc(size);
 }

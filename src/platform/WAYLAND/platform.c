@@ -130,9 +130,12 @@ int main(int argc, char* argv[]) {
        .DrawFrame = SE_DrawFrame,
 
        //memory
-       .ArenaCreateHeap = SE_ArenaCreateHeap,
-       .ArenaDestroyHeap = SE_ArenaDestroyHeap,
+       .HeapAlloc = SE_HeapAlloc,
+       .HeapRealloc = SE_HeapRealloc,
+       .HeapFree = SE_HeapFree,
 
+       .HeapArenaCreate = SE_HeapArenaCreate,
+       .StaticArenaAlloc = SE_StaticArenaAlloc,
    };
    api.r = SE_CreateRenderContext(&w);
 

@@ -11,6 +11,7 @@
  */
 
 #include "platform/wayland/wayland.h"
+#include "util.h"
 #include <platform.h>
 
 #include <render/render.h>
@@ -43,10 +44,10 @@ typedef struct SE_user_state {
     SE_shaders (x) (SE_render_context* r, const char* vert, const char* frag)
 
 #define SE_CreateVertSpecInlineFunc(x) \
-    SE_vertex_spec (x)(SE_mem_arena* a, SE_struct_member* mem, u64 size)
+    SE_vertex_spec (x)(SE_allocator* a, SE_struct_member* mem, u64 size)
 
 #define SE_CreatePipelineFunc(x) \
-    SE_render_pipeline (x)(SE_mem_arena a, SE_render_context* r, SE_vertex_spec* vspec, SE_shaders* s)
+    SE_render_pipeline (x)(SE_allocator a, SE_render_context* r, SE_vertex_spec* vspec, SE_shaders* s)
 
 #define SE_CreateResourceTrackerBufferFunc(x) \
     SE_resource_arena (x)(SE_render_context* r, VkBufferUsageFlagBits flags, VkMemoryPropertyFlagBits props, u64 minsize)
@@ -85,15 +86,23 @@ typedef SE_CreateSyncObjsFunc(*SE_create_sync_objs_func);
 typedef SE_DrawFrameFunc(*SE_draw_frame_func);
 
 //Memory Functions ---------------------------------------
-#define SE_ArenaCreateHeapFunc(x) \
-    SE_mem_arena (x)(u32 size)
 
-#define SE_ArenaDestroyHeapFunc(x) \
-    void (x)(SE_mem_arena a)
+#define SE_HeapAllocFunc(x) \
+    void* (x)(u64 size)
 
-typedef SE_ArenaCreateHeapFunc(*SE_arena_create_heap_func);
-typedef SE_ArenaDestroyHeapFunc(*SE_arena_destroy_heap_func);
+#define SE_HeapReallocFunc(x) \
+    void* (x)(void* p, u64 size)
 
+#define SE_HeapFreeFunc(x) \
+    void (x)(void* p)
+
+#define SE_HeapArenaCreateFunc(x) \
+    SE_mem_arena* (x)(u64 size)
+
+typedef SE_HeapAllocFunc(*SE_heap_alloc_func);
+typedef SE_HeapReallocFunc(*SE_heap_realloc_func);
+typedef SE_HeapFreeFunc(*SE_heap_free_func);
+typedef SE_HeapArenaCreateFunc(*SE_heap_arena_create_func);
 
 //API ----------------------------------------------------
 typedef struct SE {
@@ -117,8 +126,14 @@ typedef struct SE {
     SE_draw_frame_func DrawFrame;
 
     //Memory Functions
-    SE_arena_create_heap_func ArenaCreateHeap;
-    SE_arena_destroy_heap_func ArenaDestroyHeap;
+    
+    SE_heap_alloc_func HeapAlloc;
+    SE_heap_realloc_func HeapRealloc;
+    SE_heap_free_func HeapFree;
+
+    SE_heap_arena_create_func HeapArenaCreate;
+    SE_alloc_func StaticArenaAlloc;
+
 } SE;
 
 

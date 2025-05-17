@@ -1,4 +1,5 @@
 #include "render/memory.h"
+#include "util.h"
 #include <platform.h>
 #include <render/render.h>
 #include <render/pipeline.h>
@@ -18,12 +19,22 @@ static SE_sync_objs sync;
 SE_INIT_FUNC(Init) {
    sh = s->LoadShaders(&s->r, "shaders/vert.spv", "shaders/frag.spv");
 
-   SE_mem_arena config = s->ArenaCreateHeap(KB(10));
+   SE_allocator a = (SE_allocator){
+        .alloc = s->StaticArenaAlloc,
+        .ctx = s->HeapArenaCreate(KB(2))
+   };
 
-   SE_vertex_spec sv = s->CreateVertSpecInline(&config, Meta_Def_vert, ASIZE(Meta_Def_vert));
-   s->ArenaDestroyHeap(config);
+   SE_vertex_spec sv = s->CreateVertSpecInline(&a, Meta_Def_vert, ASIZE(Meta_Def_vert));
+
+   s->HeapFree(a.ctx);
 
     /* Mockup render pipeline creation
+    PipelineCache cache = {0};
+    CreatePipeline(&cache, options ...);
+    CreatePipeline(&cache, options ...);
+    CreatePipeline(&cache, options ...);
+
+    SE_shader s = Createshader(file, cache);
 
     PipelineInfo pinfo = BeginPipelineCreation();
     BeginPass(color);
@@ -41,7 +52,7 @@ SE_INIT_FUNC(Init) {
     AddPostEffect(pinfo, stage1, color, shaders); //implicit Renderpasses
     AddPostEffect(pinfo, SE_SCREEN, stage1, shaders);
 
-    Pipeline p = EndPipelineCreation(pinfo);
+    Pipeline p = EndPipelineCreation(pinfo, cache);
 
 
     ...

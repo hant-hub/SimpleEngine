@@ -54,11 +54,12 @@ typedef struct SE_shaders {
     VkShaderModule frag;
     VkDescriptorSet set;
     VkPipelineLayout layout;
+    u32 pipelineIdx;
 } SE_shaders;
 
 typedef struct SE_render_pipeline {
     //backing memory for the pipeline
-    SE_mem_arena mem;
+    SE_allocator mem;
     SE_resource_arena backingmem;
 
     VkPipeline* pipelines;

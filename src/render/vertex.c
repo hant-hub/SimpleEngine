@@ -7,12 +7,12 @@
 
 
 
-SE_vertex_spec SE_CreateVertSpecInline(SE_mem_arena* a, SE_struct_member* mem, u64 size) {
+SE_vertex_spec SE_CreateVertSpecInline(SE_allocator* a, SE_struct_member* mem, u64 size) {
     SE_vertex_spec spec = {0};  
 
     spec.numattrs = size;
-    spec.attrs = SE_ArenaAlloc(a, sizeof(VkVertexInputAttributeDescription) * size);
-    spec.bindings = SE_ArenaAlloc(a, sizeof(VkVertexInputBindingDescription));
+    spec.attrs = a->alloc(0, sizeof(VkVertexInputAttributeDescription) * size, NULL, a->ctx);
+    spec.bindings = a->alloc(0, sizeof(VkVertexInputBindingDescription), NULL, a->ctx);
 
     u64 totalsize = 0;
     for (u64 i = 0; i < size; i++) {

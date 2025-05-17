@@ -170,9 +170,14 @@ void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 target, SE_shaders sha
 
 SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_render_pipeline_info* info) {
     SE_render_pipeline p = {0};
-    p.mem = SE_ArenaCreateHeap(KB(10));
+    p.mem.ctx = SE_HeapArenaCreate(KB(10));
+    p.mem.alloc = SE_StaticArenaAlloc;
 
-    SE_mem_arena a = SE_ArenaCreateHeap(KB(12));
+    SE_mem_arena* m = SE_HeapArenaCreate(KB(12));
+    SE_allocator a = (SE_allocator) {
+        .alloc = SE_StaticArenaAlloc,
+        .ctx = m
+    };
 
     //make attachments
     // 0 is always the screen
@@ -223,16 +228,16 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_r
      *
      * */
     
-    VkAttachmentDescription* descrip = SE_ArenaAlloc(&a, sizeof(VkAttachmentDescription) * (num_input + num_colors + num_depth + num_resolve));
+    VkAttachmentDescription* descrip = a.alloc(0, sizeof(VkAttachmentDescription) * (num_input + num_colors + num_depth + num_resolve), NULL, a.ctx);
     u32 curr_descrip = 0;
 
-    VkAttachmentReference* input = SE_ArenaAlloc(&a, sizeof(VkAttachmentReference) * num_input);
-    VkAttachmentReference* colors = SE_ArenaAlloc(&a, sizeof(VkAttachmentReference) * num_colors);
-    VkAttachmentReference* depth = SE_ArenaAlloc(&a, sizeof(VkAttachmentReference) * num_depth);
-    VkAttachmentReference* resolve = SE_ArenaAlloc(&a, sizeof(VkAttachmentReference) * num_resolve);
+    VkAttachmentReference* input = a.alloc(0, sizeof(VkAttachmentReference) * num_input, NULL, a.ctx);
+    VkAttachmentReference* colors = a.alloc(0, sizeof(VkAttachmentReference) * num_colors, NULL, a.ctx);
+    VkAttachmentReference* depth = a.alloc(0, sizeof(VkAttachmentReference) * num_depth, NULL, a.ctx);
+    VkAttachmentReference* resolve = a.alloc(0, sizeof(VkAttachmentReference) * num_resolve, NULL, a.ctx);
 
-    VkSubpassDescription* subDes = SE_ArenaAlloc(&a, sizeof(VkSubpassDescription) * info->psize);
-    VkSubpassDependency* subDep = SE_ArenaAlloc(&a, sizeof(VkSubpassDependency) * info->psize);
+    VkSubpassDescription* subDes = a.alloc(0, sizeof(VkSubpassDescription) * info->psize, NULL, a.ctx);
+    VkSubpassDependency* subDep = a.alloc(0, sizeof(VkSubpassDependency) * info->psize, NULL, a.ctx);
 
     u32 curr_input = 0;
     u32 curr_colors = 0;
@@ -326,12 +331,12 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_r
     SE_Log("atsize: %d\n", info->atsize);
 
     p.numPasses = 1;
-    p.rpasses = SE_ArenaAlloc(&p.mem, sizeof(SE_render_pass) * p.numPasses);
+    p.rpasses = p.mem.alloc(0, sizeof(SE_render_pass) * p.numPasses, NULL, p.mem.ctx);
     REQUIRE_ZERO(vkCreateRenderPass(r->l, &rinfo, NULL, &p.rpasses[0].rp));
 
 
 
-    SE_ArenaDestroyHeap(a);
+    SE_HeapFree(m);
     return p;
 }
 

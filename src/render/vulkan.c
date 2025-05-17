@@ -33,13 +33,13 @@ static const u32 DeviceExtensionCount = ASIZE(DeviceExtensions);
 
 
 
-i32 RatePhysicalDevice(SE_mem_arena* a, u32* gfam, u32* pfam, VkPhysicalDevice p, VkSurfaceKHR surf) {
+i32 RatePhysicalDevice(SE_allocator* a, u32* gfam, u32* pfam, VkPhysicalDevice p, VkSurfaceKHR surf) {
     i32 score = 0;
 
     //Extension support
     u32 numExtensions;
     vkEnumerateDeviceExtensionProperties(p, NULL, &numExtensions, NULL);
-    VkExtensionProperties* extprops = SE_ArenaAlloc(a, (sizeof(VkExtensionProperties) * numExtensions));
+    VkExtensionProperties* extprops = a->alloc(0, (sizeof(VkExtensionProperties) * numExtensions), NULL, a->ctx);
     assert(extprops);
     vkEnumerateDeviceExtensionProperties(p, NULL, &numExtensions, extprops);
 
@@ -60,7 +60,7 @@ i32 RatePhysicalDevice(SE_mem_arena* a, u32* gfam, u32* pfam, VkPhysicalDevice p
     u32 numfam;
     vkGetPhysicalDeviceQueueFamilyProperties(p, &numfam, NULL);
 
-    VkQueueFamilyProperties* qprops = SE_ArenaAlloc(a, sizeof(VkQueueFamilyProperties) * numfam);
+    VkQueueFamilyProperties* qprops = a->alloc(0, sizeof(VkQueueFamilyProperties) * numfam, NULL, a->ctx);
     vkGetPhysicalDeviceQueueFamilyProperties(p, &numfam, qprops);
 
     Bool32 pfound = FALSE;
@@ -112,25 +112,26 @@ i32 RatePhysicalDevice(SE_mem_arena* a, u32* gfam, u32* pfam, VkPhysicalDevice p
     return score;
 }
 
-SE_swapchain SE_CreateSwapChain(SE_mem_arena* a, SE_render_context* r, SE_window* win, SE_swapchain* old) {
+SE_swapchain SE_CreateSwapChain(SE_allocator* a, SE_render_context* r, SE_window* win, SE_swapchain* old) {
     SE_swapchain s = {0};
     //SwapChain
     
-    SE_mem_arena t = {0};
+    SE_mem_arena* t;
     if (!a) {
-        t = SE_ArenaCreateHeap(4096 * 5); 
-        a = &t;
+        t = SE_HeapArenaCreate(4096 * 5); 
+        a->ctx = &t;
+        a->alloc = SE_StaticArenaAlloc;
     }
 
     {
         u32 numformats;
         REQUIRE_ZERO(vkGetPhysicalDeviceSurfaceFormatsKHR(r->p, r->surf, &numformats, NULL));
-        VkSurfaceFormatKHR* formats = SE_ArenaAlloc(a, sizeof(VkSurfaceFormatKHR) * numformats);
+        VkSurfaceFormatKHR* formats = a->alloc(0, sizeof(VkSurfaceFormatKHR) * numformats, NULL, a->ctx);
         REQUIRE_ZERO(vkGetPhysicalDeviceSurfaceFormatsKHR(r->p, r->surf, &numformats, formats));
 
         u32 numModes;
         REQUIRE_ZERO(vkGetPhysicalDeviceSurfacePresentModesKHR(r->p, r->surf, &numModes, NULL));
-        VkPresentModeKHR* modes = SE_ArenaAlloc(a, sizeof(VkPresentModeKHR) * numModes);
+        VkPresentModeKHR* modes = a->alloc(0, sizeof(VkPresentModeKHR) * numModes, NULL, a->ctx);
         REQUIRE_ZERO(vkGetPhysicalDeviceSurfacePresentModesKHR(r->p, r->surf, &numModes, modes));
 
         //pick format
@@ -156,7 +157,8 @@ SE_swapchain SE_CreateSwapChain(SE_mem_arena* a, SE_render_context* r, SE_window
         assert(s.mode);
 
         //free mem
-        SE_ArenaReset(a);
+        a->alloc(sizeof(VkSurfaceFormatKHR) * numformats, 0, formats, a->ctx);
+        a->alloc(sizeof(VkPresentModeKHR) * numModes, 0, modes, a->ctx);
     }
     {
         VkSurfaceCapabilitiesKHR cap;
@@ -253,11 +255,9 @@ SE_swapchain SE_CreateSwapChain(SE_mem_arena* a, SE_render_context* r, SE_window
         }
     }
 
-    if (t.data) {
-        SE_ArenaDestroyHeap(t);
+    if (t) {
+        SE_HeapFree(t);
     }
-
-
 
     SE_Log("SwapChain with %d Images Created\n", s.numImgs);
     return s;
@@ -269,12 +269,16 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
     //TODO(ELI): Run Tests To Make Sure this is enough
     //memory for initializing vulkan, it should be,
     //but check to make sure
-    SE_mem_arena a = SE_ArenaCreateHeap((4096 * 32));
+    SE_mem_arena* m = SE_HeapArenaCreate((4096 * 32));
+    SE_allocator a = (SE_allocator){
+        .alloc = SE_StaticArenaAlloc,
+        .ctx = m
+    };
 
     {
 
         u32 numExtensions = InstanceExtensionCount + SE_PlatformInstanceExtensionCount; 
-        const char** Extensions = SE_ArenaAlloc(&a, sizeof(char*) * numExtensions);
+        const char** Extensions = a.alloc(0, sizeof(char*) * numExtensions, NULL, a.ctx);
 
         for (u32 i = 0; i < InstanceExtensionCount; i++) {
             Extensions[i] = InstanceExtensions[i];
@@ -302,7 +306,8 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
         };
 
         REQUIRE_ZERO(vkCreateInstance(&instanceInfo, NULL, &rc.instance));
-        SE_ArenaReset(&a);
+
+        m->size = 0;
     }
 
     rc.surf = SE_CreateVKSurface(win, rc.instance);
@@ -314,23 +319,27 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
         //there should be at least one device
         assert(numDevices);
 
-        VkPhysicalDevice* devices = SE_ArenaAlloc(&a, sizeof(VkPhysicalDevice) * numDevices);
+        VkPhysicalDevice* devices = a.alloc(0, sizeof(VkPhysicalDevice) * numDevices, NULL, a.ctx);
         vkEnumeratePhysicalDevices(rc.instance, &numDevices, devices); 
 
         i32 maxscore = 0;
+        SE_mem_arena* a1 = SE_HeapArenaCreate((sizeof(VkQueueFamilyProperties) * 5000));
+        SE_allocator a = (SE_allocator){
+            .alloc = SE_StaticArenaAlloc,
+            .ctx = a1
+        };
         for (u32 i = 0; i < numDevices; i++) {
-            SE_mem_arena a1 = SE_ArenaCreateArena(&a, (sizeof(VkQueueFamilyProperties) * 5000));
             u32 gfam, pfam;
-            i32 score = RatePhysicalDevice(&a1, &gfam, &pfam, devices[i], rc.surf);
+            i32 score = RatePhysicalDevice(&a, &gfam, &pfam, devices[i], rc.surf);
             if (score >= maxscore) {
                 rc.p = devices[i];
                 rc.Queues.gfam = gfam;
                 rc.Queues.pfam = pfam;
                 maxscore = score;
             }
-            SE_ArenaReset(&a1);
+            a1->size = 0;
         }
-        SE_ArenaReset(&a);
+        m->size = 0;
         assert(rc.p);
         SE_Log("Physical Device Created!\n");
         SE_Log("Queue Families: %u %u\n", rc.Queues.gfam, rc.Queues.pfam);
@@ -376,7 +385,7 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
         vkGetDeviceQueue(rc.l, rc.Queues.pfam, 0, &rc.Queues.p);
     }
 
-    SE_ArenaReset(&a);
+    m->size = 0;
     rc.s = SE_CreateSwapChain(&a, &rc, win, &rc.s); 
 
     {
@@ -401,7 +410,7 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
     }
 
     rc.m = SE_CreateHeapTrackers(&rc);
-    SE_ArenaDestroyHeap(a);
+    SE_HeapFree(m);
     return rc;
 }
 

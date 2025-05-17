@@ -57,18 +57,31 @@ int SE_strlen(const char* str);
     }
 #endif
 
+//Custom Allocator Interface -----------------------------
+#define SE_alloc_func(x) \
+    void* (x)(u64 oldsize, u64 newsize, void* ptr, void* ctx)
+
+#define SE_mem_clean_func(x) \
+    void (x)(void* ctx)
+
+typedef SE_alloc_func(*SE_alloc_func);
+typedef SE_mem_clean_func(*SE_mem_clean_func);
+
+typedef struct SE_allocator {
+    SE_alloc_func alloc; 
+    void* ctx;
+} SE_allocator;
+
+//--------------------------------------------------------
+
 typedef struct SE_mem_arena {
-    u64 top;
+    u64 cap;
     u64 size;
-    u8* data;
+    u8 data[];
 } SE_mem_arena;
 
-SE_mem_arena SE_ArenaCreateHeap(u32 size);
-SE_mem_arena SE_ArenaCreateArena(SE_mem_arena* a, u32 size);
-void SE_ArenaDestroyHeap(SE_mem_arena a);
-
-void* SE_ArenaAlloc(SE_mem_arena* a, u64 size);
-void SE_ArenaReset(SE_mem_arena* a);
+SE_alloc_func(SE_StaticArenaAlloc);
+SE_mem_arena* SE_HeapArenaCreate(u64 size);
 
 #define ASIZE(x) (sizeof(x)/sizeof(x[0]))
 #define TRUE 1
