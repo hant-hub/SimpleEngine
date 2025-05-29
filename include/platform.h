@@ -19,7 +19,7 @@ typedef int SE_window;
     void SE_printf(const char* format, ...);
     #define SE_Log(...) SE_printf(__VA_ARGS__)
 #else
-    #define SE_LOG(x, ...)
+    #define SE_Log(x, ...)
 #endif
 
 void* SE_HeapAlloc(u64 size);

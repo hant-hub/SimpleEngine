@@ -8,6 +8,8 @@ audio, etc.
 
 ## TODO:
 - [ ] Transition to newer version of SimpleBuild
+    - [X] Linux Build
+    - [ ] Windows Build
 - [ ] Imperative Style Pipeline Creation
     - [ ] Pipeline Info
     - [ ] Depth Attachments

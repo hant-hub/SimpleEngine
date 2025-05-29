@@ -83,6 +83,8 @@ typedef struct SE_mem_arena {
 SE_alloc_func(SE_StaticArenaAlloc);
 SE_mem_arena* SE_HeapArenaCreate(u64 size);
 
+SE_alloc_func(SE_HeapGlobalAlloc);
+
 #define ASIZE(x) (sizeof(x)/sizeof(x[0]))
 #define TRUE 1
 #define FALSE 0

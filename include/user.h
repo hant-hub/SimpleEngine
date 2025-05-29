@@ -11,6 +11,7 @@
  */
 
 #include "platform/wayland/wayland.h"
+#include "render/cache.h"
 #include "util.h"
 #include <platform.h>
 
@@ -56,22 +57,37 @@ typedef struct SE_user_state {
     SE_render_buffer (x)(SE_resource_arena* a, u64 size)
 
 #define SE_TransferMemoryFunc(x) \
-    void (x)(SE_render_context* r, SE_render_buffer dst, void* data, u64 size)
+    void (x)(SE_render_context* r, SE_render_buffer dst, const void* data, u64 size)
+
+#define SE_InitPipelineCacheFunc(x) \
+    SE_pipeline_cache (x)(const SE_allocator a)
+
+#define SE_FreePipelineCacheFunc(x) \
+    void (x)(SE_pipeline_cache* c)
+
+#define SE_PushPipelineTypeFunc(x) \
+    void (x)(SE_pipeline_cache* c, SE_pipeline_options o)
+
+#define SE_AddShaderFunc(x) \
+    u32 (x)(SE_render_pipeline_info* p, SE_shaders* s)
+
+#define SE_AddVertSpecFunc(x) \
+    u32 (x)(SE_render_pipeline_info* p, SE_vertex_spec* v)
 
 #define SE_BeginPipelineCreationFunc(x) \
     SE_render_pipeline_info (x)(void)
 
 #define SE_OpqaueNoDepthPassFunc(x) \
-    void (x)(SE_render_pipeline_info* p, u32 target, SE_shaders shader)
+    void (x)(SE_render_pipeline_info* p, u32 vert, u32 target, u32 shader)
 
 #define SE_EndPipelineCreationFunc(x) \
-    SE_render_pipeline (x)(const SE_render_context* r, const SE_render_pipeline_info* info)
+    SE_render_pipeline (x)(const SE_render_context* r, const SE_render_pipeline_info* info, const SE_pipeline_cache* c)
 
 #define SE_CreateSyncObjsFunc(x) \
-    SE_sync_objs (x)(SE_render_context* r)
+    SE_sync_objs (x)(const SE_render_context* r)
 
 #define SE_DrawFrameFunc(x) \
-    void (x)(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_sync_objs* s, SE_resource_arena* vert)
+    void (x)(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_resource_arena* vert)
 
 typedef SE_LoadShaderFunc(*SE_load_shader_func);
 typedef SE_CreateVertSpecInlineFunc(*SE_create_vert_spec_inline_func);
@@ -79,6 +95,11 @@ typedef SE_CreatePipelineFunc(*SE_create_pipeline);
 typedef SE_CreateResourceTrackerBufferFunc(*SE_create_resource_tracker_buffer_func);
 typedef SE_CreateBufferFunc(*SE_create_buffer_func);
 typedef SE_TransferMemoryFunc(*SE_transfer_memory_func);
+typedef SE_InitPipelineCacheFunc(*SE_init_pipeline_cache_func);
+typedef SE_PushPipelineTypeFunc(*SE_push_pipeline_type_func);
+typedef SE_FreePipelineCacheFunc(*SE_free_pipeline_cache_func);
+typedef SE_AddShaderFunc(*SE_add_shader_func);
+typedef SE_AddVertSpecFunc(*SE_add_vert_spec_func);
 typedef SE_BeginPipelineCreationFunc(*SE_begin_pipeline_creation_func);
 typedef SE_OpqaueNoDepthPassFunc(*SE_opque_no_depth_pass_func);
 typedef SE_EndPipelineCreationFunc(*SE_end_pipeline_creation_func);
@@ -118,6 +139,13 @@ typedef struct SE {
     SE_create_buffer_func CreateBuffer;
     SE_transfer_memory_func TransferMemory;
 
+    SE_init_pipeline_cache_func InitPipelineCache;
+    SE_push_pipeline_type_func PushPipelineType;
+
+    SE_add_shader_func AddShader;
+    SE_add_vert_spec_func AddVertSpec;
+
+    SE_free_pipeline_cache_func FreePipelineCache;
     SE_begin_pipeline_creation_func BeginPipelineCreation;
     SE_opque_no_depth_pass_func OpqaueNoDepthPass;
     SE_end_pipeline_creation_func EndPipelineCreation;
@@ -133,6 +161,7 @@ typedef struct SE {
 
     SE_heap_arena_create_func HeapArenaCreate;
     SE_alloc_func StaticArenaAlloc;
+    SE_alloc_func HeapGlobalAlloc;
 
 } SE;
 

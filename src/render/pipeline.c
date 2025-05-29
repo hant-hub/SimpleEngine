@@ -1,3 +1,4 @@
+#include "render/cache.h"
 #include "render/utils.h"
 #include "render/vertex.h"
 #include "util.h"
@@ -6,6 +7,7 @@
 #include <render/render.h>
 #include <render/pipeline.h>
 #include <render/memory.h>
+#include <stdint.h>
 #include <vulkan/vulkan_core.h>
 
 
@@ -44,34 +46,13 @@ SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* fr
     return s;
 }
 
-void SE_CreateFrameBuffers(SE_render_context* r, SE_render_pipeline* p) {
-    p->numframebuffers = r->s.numImgs;
-    p->framebuffers = SE_HeapAlloc(sizeof(VkFramebuffer) * r->s.numImgs);
-    for (u32 i = 0; i < r->s.numImgs; i++) {
-        VkImageView views[] = {
-            r->s.views[i],
-            p->views[1]
-        };
-        VkFramebufferCreateInfo frameInfo = {
-            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .attachmentCount = 1,
-            .pAttachments = views,
-            .renderPass = p->rpasses[0].rp,
-            .height = r->s.size.height,
-            .width = r->s.size.width,
-            .layers = 1,
-        };
 
-        REQUIRE_ZERO(vkCreateFramebuffer(r->l, &frameInfo, NULL, &p->framebuffers[i]));
-    }
-}
-
-SE_sync_objs SE_CreateSyncObjs(SE_render_context* r) {
+SE_sync_objs SE_CreateSyncObjs(const SE_render_context* r) {
     VkRenderPassCreateInfo i;
 
     SE_sync_objs s = {0};
     //TODO(ELI): allow configuration in future
-    const u32 numFrames = 1;
+    const u32 numFrames = r->s.numImgs;
     s.numFrames = numFrames;
     s.avalible = SE_HeapAlloc(sizeof(VkSemaphore) * numFrames);  
     s.finished = SE_HeapAlloc(sizeof(VkSemaphore) * numFrames);  
@@ -139,6 +120,14 @@ void SE_push_shaders(SE_render_pipeline_info* p, SE_shaders s) {
     p->shaders[p->ssize++] = s;
 }
 
+void SE_push_vert(SE_render_pipeline_info* p, SE_vertex_spec v) {
+    if (p->vsize + 1 > p->vcap) {
+        p->vcap = p->vcap ? p->vcap * 2 : 2;
+        p->verts = SE_HeapRealloc(p->verts, sizeof(SE_vertex_spec) * p->vcap);
+    }
+    p->verts[p->vsize++] = v;
+}
+
 //-------------------------------------------------------------
 
 /*
@@ -152,14 +141,27 @@ SE_render_pipeline_info SE_BeginPipelineCreation(void) {
     return info;
 }
 
-void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 target, SE_shaders shader) {
+u32 SE_AddShader(SE_render_pipeline_info* p, SE_shaders* s) {
+    u32 output = p->ssize;
+    SE_push_shaders(p, *s); 
+    return output;
+}
+
+u32 SE_AddVertSpec(SE_render_pipeline_info* p, SE_vertex_spec* v) {
+    u32 output = p->vsize;
+    SE_push_vert(p, *v); 
+    return output;
+}
+
+void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 shader) {
     SE_subpass_attach a = (SE_subpass_attach) {
         .usage = SE_attach_color,
         .attach_idx = target,
     };
 
     SE_sub_pass s = (SE_sub_pass) {
-        
+        .shader = shader,
+        .vert = vert,
         .start = p->rsize,
         .num = 1,
     };
@@ -168,8 +170,9 @@ void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 target, SE_shaders sha
     SE_push_pass(p, s);
 }
 
-SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_render_pipeline_info* info) {
+SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_render_pipeline_info* info, const SE_pipeline_cache* c) {
     SE_render_pipeline p = {0};
+    p.numSubpasses = info->psize;
     p.mem.ctx = SE_HeapArenaCreate(KB(10));
     p.mem.alloc = SE_StaticArenaAlloc;
 
@@ -264,11 +267,12 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_r
                         descrip[curr_descrip] = (VkAttachmentDescription) {
                             .format = r->s.format.format,
                             .samples = VK_SAMPLE_COUNT_1_BIT,
-                            .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
                             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                             .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                         };
+
 
                         colors[curr_colors++] = (VkAttachmentReference) {
                             .attachment = curr_descrip,
@@ -278,6 +282,11 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_r
                         subDep[i].srcStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
                         subDep[i].dstStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
                         subDep[i].dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+                        if (info->attach_refs[j + info->passes[i].start].attach_idx == 0) {
+                            SE_Log("hit\n");
+                            descrip[curr_descrip].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+                        }
                     } break;
                 case SE_attach_depth:
                     {
@@ -325,21 +334,251 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_r
         .pAttachments = descrip,
     };
 
-
-    VkGraphicsPipelineCreateInfo _;
-
-    SE_Log("atsize: %d\n", info->atsize);
+    SE_Log("passes: %d\n", info->psize);
 
     p.numPasses = 1;
     p.rpasses = p.mem.alloc(0, sizeof(SE_render_pass) * p.numPasses, NULL, p.mem.ctx);
     REQUIRE_ZERO(vkCreateRenderPass(r->l, &rinfo, NULL, &p.rpasses[0].rp));
 
+    //Build pipelines
 
+
+    VkPipelineShaderStageCreateInfo stages[2] = {
+        (VkPipelineShaderStageCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .module = info->shaders[0].vert,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .pName = "main",
+        },
+        (VkPipelineShaderStageCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .module = info->shaders[0].frag,
+            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pName = "main",
+        },
+    };
+
+    VkPipelineInputAssemblyStateCreateInfo assemInfo = (VkPipelineInputAssemblyStateCreateInfo){
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE,
+    };
+
+
+    VkPipelineRasterizationStateCreateInfo rasterInfo = (VkPipelineRasterizationStateCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .cullMode = VK_CULL_MODE_NONE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .depthBiasEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .lineWidth = 1.0f
+    };
+
+    VkPipelineMultisampleStateCreateInfo multiInfo = (VkPipelineMultisampleStateCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .minSampleShading = 1.0f,
+    };
+
+    VkPipelineDepthStencilStateCreateInfo depthInfo = (VkPipelineDepthStencilStateCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE,
+    };
+
+    VkPipelineColorBlendAttachmentState blendInfo = (VkPipelineColorBlendAttachmentState) {
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        .blendEnable = VK_FALSE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp = VK_BLEND_OP_ADD,
+    };
+
+    VkPipelineColorBlendStateCreateInfo colorInfo = (VkPipelineColorBlendStateCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOp = VK_LOGIC_OP_COPY,
+        .logicOpEnable = VK_FALSE,
+        .attachmentCount = 1,
+        .pAttachments = &blendInfo,
+        .blendConstants[0] = 0.0f,
+        .blendConstants[1] = 0.0f,
+        .blendConstants[2] = 0.0f,
+        .blendConstants[3] = 0.0f,
+    };
+
+    VkDynamicState states[] = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+    };
+
+    VkPipelineDynamicStateCreateInfo dynstate = (VkPipelineDynamicStateCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .pDynamicStates = states,
+        .dynamicStateCount = ASIZE(states),
+    };
+
+    VkPipelineViewportStateCreateInfo viewInfo = (VkPipelineViewportStateCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .scissorCount = 1,
+    };
+
+
+    VkGraphicsPipelineCreateInfo pipeInfo = (VkGraphicsPipelineCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .basePipelineHandle = NULL,
+        .basePipelineIndex = 0,
+        .layout = info->shaders[0].layout,
+        .stageCount = 2,
+        .pStages = stages, 
+        .pVertexInputState = &info->verts[0].inputstate,
+        .pInputAssemblyState = &assemInfo,
+        .pTessellationState = NULL,
+        .pViewportState = &viewInfo,
+        .pRasterizationState = &rasterInfo,
+        .pMultisampleState = &multiInfo,
+        .pDepthStencilState = &depthInfo,
+        .pColorBlendState = &colorInfo,
+        .pDynamicState = &dynstate,
+
+        .renderPass = p.rpasses[0].rp,
+        .subpass = 0,
+    };
+
+    p.pipelines = p.mem.alloc(0, sizeof(VkPipeline), NULL, p.mem.ctx);
+    REQUIRE_ZERO(vkCreateGraphicsPipelines(r->l, NULL, 1, &pipeInfo, NULL, &p.pipelines[0]));
+
+    SE_CreateFrameBuffers(r, &p);
+    p.s = SE_CreateSyncObjs(r);
 
     SE_HeapFree(m);
     return p;
 }
 
+void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
+    p->numframebuffers = r->s.numImgs + p->numSubpasses;
+    p->framebuffers = SE_HeapAlloc(sizeof(VkFramebuffer) * r->s.numImgs);
+
+    for (u32 i = 0; i < r->s.numImgs; i++) {
+        VkImageView views[] = {
+            r->s.views[i],
+        };
+        VkFramebufferCreateInfo frameInfo = {
+            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            .pAttachments = views,
+            .attachmentCount = 1,
+            .renderPass = p->rpasses[0].rp,
+            .height = r->s.size.height,
+            .width = r->s.size.width,
+            .layers = 1,
+        };
+
+        REQUIRE_ZERO(vkCreateFramebuffer(r->l, &frameInfo, NULL, &p->framebuffers[i]));
+    }
+}
+
 //temporary
-void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_sync_objs* s, SE_resource_arena* vert) {
+void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_resource_arena* vert) {
+
+    static u32 frame = 0;
+    frame = (frame + 1) % r->s.numImgs;
+
+    vkWaitForFences(r->l, 1, &p->s.pending[0], VK_TRUE, UINT64_MAX);
+    vkResetFences(r->l, 1, &p->s.pending[0]);
+
+    u32 img;
+    REQUIRE_ZERO(vkAcquireNextImageKHR(r->l, r->s.swap, UINT64_MAX, p->s.avalible[frame], VK_NULL_HANDLE, &img));
+
+    vkResetCommandBuffer(r->cmd, 0);
+    VkCommandBufferBeginInfo cmdinfo = (VkCommandBufferBeginInfo) {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+
+    REQUIRE_ZERO(vkBeginCommandBuffer(r->cmd, &cmdinfo));
+
+    VkClearValue clearvalues[] = {
+        {{0.2f, 0.2f, 0.2f, 1.0f}},
+        {{1.0f, 1.0f, 1.0f, 1.0f}},
+    };
+
+    VkRenderPassBeginInfo rpassInfo = (VkRenderPassBeginInfo) {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .renderArea = (VkRect2D){
+                .extent = r->s.size,
+                .offset = (VkOffset2D){0, 0},
+            },
+            .renderPass = p->rpasses[0].rp,
+            .framebuffer = p->framebuffers[img],
+            .pClearValues = clearvalues,
+            .clearValueCount = 1,
+    };
+
+    //SE_Log("SwapSize: (%d, %d)\n", r->s.size.width, r->s.size.height);
+
+
+    vkCmdBeginRenderPass(r->cmd, &rpassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport view = (VkViewport) {
+        .height = r->s.size.height,
+        .width = r->s.size.width,
+        .maxDepth = 1,
+    };
+
+    VkRect2D scissor = (VkRect2D) {
+        .extent = r->s.size,
+        .offset = {0, 0},
+    };
+
+    vkCmdSetViewport(r->cmd, 0, 1, &view);
+    vkCmdSetScissor(r->cmd, 0, 1, &scissor);
+
+    for (u32 i = 0; i < p->numSubpasses; i++) {
+        vkCmdBindPipeline(r->cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelines[0]);
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(r->cmd, 0, 1, (VkBuffer*)&vert->resource, offsets);
+        vkCmdDraw(r->cmd, 3, 1, 0, 0);
+    }
+
+
+    vkCmdEndRenderPass(r->cmd);
+    REQUIRE_ZERO(vkEndCommandBuffer(r->cmd));
+
+    VkPipelineStageFlags flags[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSubmitInfo submitInfo = (VkSubmitInfo) {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pWaitSemaphores = &p->s.avalible[frame],
+            .waitSemaphoreCount = 1,
+
+            .pWaitDstStageMask = flags,
+
+            .pCommandBuffers = &r->cmd,
+            .commandBufferCount = 1,
+
+            .pSignalSemaphores = &p->s.finished[img],
+            .signalSemaphoreCount = 1,
+
+    };
+
+    REQUIRE_ZERO(vkQueueSubmit(r->Queues.g, 1, &submitInfo, p->s.pending[0]));
+
+    VkPresentInfoKHR presentInfo = (VkPresentInfoKHR){
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .pSwapchains = &r->s.swap,
+            .swapchainCount = 1,
+
+            .pWaitSemaphores = &p->s.finished[img],
+            .waitSemaphoreCount = 1,
+
+            .pImageIndices = &img,
+
+            .pResults = NULL,
+    };
+
+    REQUIRE_ZERO(vkQueuePresentKHR(r->Queues.p, &presentInfo));
+
 }

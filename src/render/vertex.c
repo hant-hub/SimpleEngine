@@ -11,6 +11,7 @@ SE_vertex_spec SE_CreateVertSpecInline(SE_allocator* a, SE_struct_member* mem, u
     SE_vertex_spec spec = {0};  
 
     spec.numattrs = size;
+    spec.numbindings = 1;
     spec.attrs = a->alloc(0, sizeof(VkVertexInputAttributeDescription) * size, NULL, a->ctx);
     spec.bindings = a->alloc(0, sizeof(VkVertexInputBindingDescription), NULL, a->ctx);
 
@@ -58,7 +59,7 @@ SE_vertex_spec SE_CreateVertSpecInline(SE_allocator* a, SE_struct_member* mem, u
     spec.bindings[0] = (VkVertexInputBindingDescription) {
         .binding = 0,
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        .stride = totalsize
+        .stride = totalsize,
     };
 
     spec.inputstate = (VkPipelineVertexInputStateCreateInfo){

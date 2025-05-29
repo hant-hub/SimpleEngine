@@ -1,146 +1,93 @@
-#include <stdio.h>
 #define SB_IMPL
 #include "sb.h"
 
 
-
 int main(int argc, char* argv[]) {
-    AUTO_REBUILD(argc, argv);
+    sb_BUILD(argc, argv) {
+        sb_target_dir("build/");
+        sb_chdir_exe();
+        sb_mkdir("build");
 
-    if (argc < 2) {
-        sb_fprintf(stdin, "Platform spec Required");
-        exit(-1);
+        sb_EXEC() {
+            sb_set_out("app");
+
+            sb_add_flag("g");
+
+            sb_add_flag("Iinclude");
+            sb_add_flag("Ilib/vulkan/include");
+
+            sb_add_flag("DSE_DEBUG_CONSOLE");
+            sb_add_flag("DSE_ASSERT");
+            sb_add_flag("DSE_DEBUG_VULKAN");
+
+            sb_add_flag("pedantic");
+            sb_add_flag("Werror=vla");
+
+            sb_link_library("vulkan");
+            sb_link_library("wayland-client");
+
+
+            if (sb_check_arg("wayland")) {
+                sb_add_file("src/platform/WAYLAND/platform.c");
+                sb_add_flag("DWAYLAND");
+            } else if (sb_check_arg("win32")) {
+                sb_add_file("src/platform/WIN32/platform.c");
+            }
+
+            sb_add_file("src/render/vulkan.c");
+            sb_add_file("src/util.c");
+            sb_add_file("src/math/math.c");
+
+            sb_export_command();
+        }
+        sb_EXEC() {
+            sb_add_flag("Iinclude");
+            sb_add_flag("Ilib/vulkan/include");
+
+            sb_set_out("init.so");
+            sb_add_flag("shared");
+
+            sb_add_file("tests/init.c");
+
+            if (sb_check_arg("wayland")) {
+                sb_add_flag("DWAYLAND");
+            } else if (sb_check_arg("win32")) {
+            }
+
+            sb_export_command();
+        }
+        sb_EXEC() {
+            sb_set_out("preprocessor");
+
+            sb_add_flag("Imeta/platform/include");
+
+            sb_add_file("meta/meta.c");
+            sb_add_file("meta/generate.c");
+            sb_add_file("meta/parser.c");
+            sb_add_file("meta/symboltable.c");
+            sb_add_file("meta/token.c");
+
+            sb_add_file("meta/platform/src/platform.c");
+
+            sb_export_command();
+        }
+
+        sb_mkdir("build/shaders");
+        sb_CMD() {
+            sb_cmd_main("glslc");
+            sb_cmd_arg("shaders/test.glsl.vert");
+            sb_cmd_opt("obuild/shaders/vert.spv");
+        }
+
+        sb_CMD() {
+            sb_cmd_main("glslc");
+            sb_cmd_arg("shaders/test.glsl.frag");
+            sb_cmd_opt("obuild/shaders/frag.spv");
+        }
+
+        sb_fence();
+        sb_CMD() {
+            sb_cmd_main("./build/app");
+        }
     }
-
-    sb_cmd* c = &(sb_cmd){0};
-
-    FILE* f = fopen("compile_flags.txt", "w+");
-    fprintf(f, "-Iinclude\n");
-    fprintf(f, "-Ilib/vulkan/include\n");
-    fprintf(f, "-pedantic\n");
-    fprintf(f, "-std=c99\n");
-    fprintf(f, "-Werror=vla\n");
-    if (strcmp(argv[1], "wayland") == 0) {
-        fprintf(f, "-D WAYLAND\n");
-    } else if (strcmp(argv[1], "win32") == 0) {
-        fprintf(f, "-D WIN32\n");
-    }
-    fprintf(f, "-DSE_DEBUG_CONSOLE\n");
-    fprintf(f, "-DSE_ASSERT\n");
-    fprintf(f, "-DSE_DEBUG_VULKAN\n");
-    fclose(f); 
-    
-
-    sb_mkdir("build");
-    sb_mkdir("build/shaders");
-
-    //metaprogramming layer
-    sb_pick_compiler();
-    sb_cmd_push(c, sb_compiler(), "-g", "-Werror=vla"); 
-
-    sb_cmd_push(c, "meta/meta.c");
-    sb_cmd_push(c, "meta/token.c");
-    sb_cmd_push(c, "meta/parser.c");
-    sb_cmd_push(c, "meta/symboltable.c");
-    sb_cmd_push(c, "meta/generate.c");
-
-    sb_cmd_push(c, "meta/platform/src/platform.c");
-    sb_cmd_push(c, sb_cmd_flag("Imeta/platform/include"));
-    sb_cmd_push(c, "-o", "build/preprocessor");
-    if (sb_cmd_sync_and_reset(c)) {
-        return -1;
-    }
-
-    //run preprocessor
-
-    sb_cmd_push(c, "./build/preprocessor");
-    if (sb_cmd_sync_and_reset(c)) {
-        return -1;
-    }
-
-    sb_cmd_push(c, "glslc", "shaders/test.glsl.vert", "-o", "build/shaders/vert.spv");
-    if (sb_cmd_sync_and_reset(c)) {
-        return -1;
-    }
-
-    sb_cmd_push(c, "glslc", "shaders/test.glsl.frag", "-o", "build/shaders/frag.spv");
-    if (sb_cmd_sync_and_reset(c)) {
-        return -1;
-    }
-
-
-    sb_cmd_push(c, sb_compiler(), "-std=c99", "-pedantic", "-g", "-Iinclude", "-Werror=vla");
-
-    sb_cmd_push(c, "-Ilib/vulkan/include");
-    sb_cmd_push(c, "-Llib/vulkan/Lib");
-    sb_cmd_push(c, "-isystem");
-
-
-    if (strcmp(argv[1], "wayland") == 0) {
-        sb_cmd_push(c, "-c");
-        sb_cmd_push(c, "src/math/math.c");
-        sb_cmd_push(c, "src/util.c");
-        sb_cmd_push(c, "src/render/vulkan.c");
-        sb_cmd_push(c, "src/platform/WAYLAND/platform.c", "-D", "WAYLAND"); //TODO(ELI): Make switch with platform
-        sb_cmd_push(c, "-lwayland-client");
-        sb_cmd_push(c, "-lrt");
-        sb_cmd_push(c, "-lc");
-        sb_cmd_push(c, "-lvulkan");
-    } else if (strcmp(argv[1], "win32") == 0) {
-        sb_cmd_push(c, "src/math/math.c");
-        sb_cmd_push(c, "src/util.c");
-        sb_cmd_push(c, "src/render/vulkan.c");
-        sb_cmd_push(c, "src/platform/WIN32/platform.c");
-        sb_cmd_push(c, "-D", "WIN32");
-        sb_cmd_push(c, "-luser32");
-        sb_cmd_push(c, "-lvulkan-1");
-        sb_cmd_push(c, "-Xlinker", "/subsystem:windows");
-    }
-
-
-    sb_cmd_push(c, "-D SE_DEBUG_CONSOLE");
-    sb_cmd_push(c, "-D SE_ASSERT");
-    sb_cmd_push(c, "-D SE_DEBUG_VULKAN");
-
-    if (strcmp(argv[1], "wayland") == 0) {
-        sb_cmd_push(c, "-o", "build/test");
-    } else {
-        sb_cmd_push(c, "-o", "build/test.exe");
-    }
-    
-    if (sb_cmd_sync_and_reset(c)) {
-        return -1;
-    }
-
-    sb_cmd_push(c, sb_compiler(), "-std=c99", "-pedantic", "-g", "-Iinclude", "-Werror=vla");
-    if (strcmp(argv[1], "wayland") == 0) {
-        sb_cmd_push(c, "-D", "WAYLAND");
-    } else if (strcmp(argv[1], "win32") == 0) {
-        sb_cmd_push(c, "-D", "WIN32");
-    }
-    sb_cmd_push(c, "tests/init.c");
-    sb_cmd_push(c, "-Ilib/vulkan/include");
-    sb_cmd_push(c, "-Llib/vulkan/Lib");
-//    sb_cmd_push(c, "src/render/vulkan.c");
-    sb_cmd_push(c, "-isystem");
-    sb_cmd_push(c, "-fPIC");
-    sb_cmd_push(c, "-shared");
-    sb_cmd_push(c, "-o", "build/init.so");
-
-    if (sb_cmd_sync_and_reset(c)) {
-        return -1;
-    }
-
-    if (strcmp(argv[1], "wayland") == 0) {
-        sb_cmd_push(c, "./build/test");
-    } else {
-        sb_cmd_push(c, "./build/test.exe");
-    }
-
-    //run test
-    if (sb_cmd_sync_and_reset(c)) {
-        return -1;
-    }
-
-    return 0;
 }

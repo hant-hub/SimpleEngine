@@ -3,6 +3,7 @@
 #include <platform.h>
 #include <util.h>
 #include <wayland-client-protocol.h>
+#include <stdio.h>
 
 static Bool32 resizeReady = FALSE;
 

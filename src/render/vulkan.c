@@ -8,6 +8,7 @@
 #include "pipeline.c"
 #include "memory.c"
 #include "vertex.c"
+#include "pipelinecache.c"
 #include "utils.c"
 
 static const char* InstanceExtensions[] = {
@@ -18,10 +19,16 @@ static const u32 InstanceExtensionCount = ASIZE(InstanceExtensions);
 
 #ifdef SE_DEBUG_VULKAN
 static const char* ValidationLayers[] = {
-    "VK_LAYER_KHRONOS_validation"
+    "VK_LAYER_KHRONOS_validation",
 };
 static const u32 ValidationLayerCount = ASIZE(ValidationLayers);
+#else
+
+static const char* ValidationLayers[] = {""};
+static const u32 ValidationLayerCount = 0;
+
 #endif
+
 
 
 static const char* DeviceExtensions[] = {
@@ -269,6 +276,7 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
     //TODO(ELI): Run Tests To Make Sure this is enough
     //memory for initializing vulkan, it should be,
     //but check to make sure
+
     SE_mem_arena* m = SE_HeapArenaCreate((4096 * 32));
     SE_allocator a = (SE_allocator){
         .alloc = SE_StaticArenaAlloc,
@@ -296,6 +304,7 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
             .apiVersion = VK_API_VERSION_1_0
         };
 
+
         VkInstanceCreateInfo instanceInfo = {
             .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             .pApplicationInfo = &appInfo,
@@ -303,9 +312,11 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
             .enabledExtensionCount = numExtensions,
             .enabledLayerCount = ValidationLayerCount,
             .ppEnabledLayerNames = ValidationLayers,
+            .flags = VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
         };
 
         REQUIRE_ZERO(vkCreateInstance(&instanceInfo, NULL, &rc.instance));
+
 
         m->size = 0;
     }
@@ -367,7 +378,7 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
             };
         }
 
-        VkPhysicalDeviceFeatures features = {0};
+        VkPhysicalDeviceFeatures features = (VkPhysicalDeviceFeatures){0};
 
         VkDeviceCreateInfo devInfo = {
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,

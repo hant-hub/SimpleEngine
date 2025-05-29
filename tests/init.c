@@ -1,5 +1,7 @@
+#include "render/cache.h"
 #include "render/memory.h"
 #include "util.h"
+#include "vulkan/vulkan_core.h"
 #include <platform.h>
 #include <render/render.h>
 #include <render/pipeline.h>
@@ -8,6 +10,7 @@
 
 #include "init.h"
 #include <stdio.h>
+#include <string.h>
 #include <user.h>
 #include <generated/generated_struct.h>
 
@@ -15,6 +18,15 @@ static SE_shaders sh;
 static SE_resource_arena vertex;
 static SE_render_buffer vbuf;
 static SE_sync_objs sync;
+static SE_render_pipeline pipe;
+
+const static vert verts[] = {
+    (vert){{0.0, -0.5, 0.5f},   {0, 0}},
+    (vert){{0.5, 0.5, 0.5f},    {0, 0}},
+    (vert){{-0.5, 0.5, 0.5f},   {0, 0}},
+};
+
+
 
 SE_INIT_FUNC(Init) {
    sh = s->LoadShaders(&s->r, "shaders/vert.spv", "shaders/frag.spv");
@@ -26,7 +38,12 @@ SE_INIT_FUNC(Init) {
 
    SE_vertex_spec sv = s->CreateVertSpecInline(&a, Meta_Def_vert, ASIZE(Meta_Def_vert));
 
-   s->HeapFree(a.ctx);
+   vertex = s->CreateResourceTrackerBuffer(&s->r,
+           VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, MB(3));
+
+   vbuf = s->CreateBuffer(&vertex, sizeof(verts));
+   s->TransferMemory(&s->r, vbuf, verts, sizeof(verts));
 
     /* Mockup render pipeline creation
     PipelineCache cache = {0};
@@ -60,22 +77,40 @@ SE_INIT_FUNC(Init) {
      
     */
 
-    SE_render_pipeline_info p = s->BeginPipelineCreation(); 
-    s->OpqaueNoDepthPass(&p, 0, sh);
+   SE_allocator global = {
+       .alloc = s->HeapGlobalAlloc,
+   };
 
-    printf("RenderPass Info:\n");
-    for (u32 i = 0; i < p.psize; i++) {
-        printf("\t(%d, %d)\n", p.passes[i].start, p.passes[i].num);
-    }
 
-    SE_render_pipeline pipe = s->EndPipelineCreation(&s->r, &p);
+   SE_render_pipeline_info p = s->BeginPipelineCreation(); 
+
+   u32 vidx = s->AddVertSpec(&p, &sv);
+   u32 sidx = s->AddShader(&p, &sh);
+
+   SE_pipeline_cache c = s->InitPipelineCache(global);
+
+   s->PushPipelineType(&c, (SE_pipeline_options){
+           .shaders = sidx, 
+   });
+
+
+   s->OpqaueNoDepthPass(&p, 0, 0, sidx);
+
+   printf("RenderPass Info:\n");
+   for (u32 i = 0; i < p.psize; i++) {
+       printf("\t(%d, %d)\n", p.passes[i].start, p.passes[i].num);
+   }
+
+   pipe = s->EndPipelineCreation(&s->r, &p, &c);
+   s->FreePipelineCache(&c);
+   s->HeapFree(a.ctx);
 }
 
 SE_UPDATE_FUNC(Update) {
 }
 
 SE_DRAW_FUNC(Draw) {
-    //s->DrawFrame(s->w, &s->r, &p, &sync, &vertex);
+    s->DrawFrame(s->w, &s->r, &pipe, &vertex);
 }
 
 

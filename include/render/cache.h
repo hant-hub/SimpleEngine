@@ -22,29 +22,6 @@ typedef enum SE_primitive_type {
     //More later
 } SE_primitive_type;
 
-typedef struct SE_draw_region {
-    SE_v2f offset;
-    SE_v2f size;
-} SE_draw_region;
-
-typedef struct SE_view {
-    SE_v2f offset;
-    SE_v2f size;
-
-    SE_v2f depth;
-} SE_view;
-
-static const SE_view SE_DEFAULT_VIEW = (SE_view) {
-    .offset = {0, 0},
-    .size = {1, 1}, //fullscreen
-    .depth = {0, 1},
-};
-
-static const SE_draw_region SE_DEFAULT_SCISSOR = (SE_draw_region) {
-    .offset = {0, 0},
-    .size = {1, 1}, //full screen
-};
-
 typedef enum SE_polygon_mode {
     SE_POLYGON_FILL = 0,
     SE_POLYGON_LINE,
@@ -98,8 +75,6 @@ typedef struct SE_pipeline_options {
     //TODO(ELI): Tesselation Support
     //VkPipelineTessellationStateCreateInfo     pTessellationState;
 
-    SE_draw_region scissor;
-    SE_view view;
     SE_raster_info raster;
 
     //TODO(ELI): Multisample support
@@ -121,6 +96,8 @@ typedef struct SE_pipeline_cache {
     u32 size;
 } SE_pipeline_cache;
 
-//void SE_PushPipelineType(void);
 
+SE_pipeline_cache SE_InitPipelineCache(const SE_allocator a);
+void SE_PushPipelineType(SE_pipeline_cache* c, SE_pipeline_options o);
+void SE_FreePipelineCache(SE_pipeline_cache* c);
 #endif

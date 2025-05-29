@@ -129,7 +129,7 @@ SE_render_buffer SE_CreateBuffer(SE_resource_arena* a, u64 size) {
 }
 
 
-void SE_TransferMemory(SE_render_context* r, SE_render_buffer dst, void* data, u64 size) {
+void SE_TransferMemory(SE_render_context* r, SE_render_buffer dst, const void* data, u64 size) {
     SE_render_memory* m = &r->m;
 
     static SE_resource_arena staging_memory = {0};
@@ -156,41 +156,31 @@ void SE_TransferMemory(SE_render_context* r, SE_render_buffer dst, void* data, u
     vkUnmapMemory(r->l, staging_memory.devMem); 
 
 
-    VkCommandBufferAllocateInfo allocinfo = (VkCommandBufferAllocateInfo){
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandBufferCount = 1,
-        .commandPool = r->pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-    };
 
-    VkCommandBuffer cmd;
-    vkAllocateCommandBuffers(r->l, &allocinfo, &cmd);
-    
+    vkResetCommandBuffer(r->cmd, 0);
     VkCommandBufferBeginInfo cmdbegin = (VkCommandBufferBeginInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
     };
 
-    vkBeginCommandBuffer(cmd, &cmdbegin);
+    vkBeginCommandBuffer(r->cmd, &cmdbegin);
 
     VkBufferCopy copyInfo = (VkBufferCopy) {
         .dstOffset = dst.offset,
         .srcOffset = 0,
         .size = size,
     };
-    vkCmdCopyBuffer(cmd, staging_memory.resource, dst.mem->resource, 1, &copyInfo);
-    vkEndCommandBuffer(cmd);
+    vkCmdCopyBuffer(r->cmd, staging_memory.resource, dst.mem->resource, 1, &copyInfo);
+    vkEndCommandBuffer(r->cmd);
 
     VkSubmitInfo subinfo = (VkSubmitInfo) {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1,
-        .pCommandBuffers = &cmd,
+        .pCommandBuffers = &r->cmd,
     };
 
     vkQueueSubmit(r->Queues.g, 1, &subinfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(r->Queues.g);
-
-    vkFreeCommandBuffers(r->l, r->pool, 1, &cmd);
 }
 
 SE_resource_arena SE_CreateResourceTrackerRaw(SE_render_context* r, VkMemoryPropertyFlagBits props, u64 minsize) {

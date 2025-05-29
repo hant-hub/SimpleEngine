@@ -31,10 +31,6 @@ int SE_strlen(const char* str) {
     return str - p; 
 }
 
-
-
-
-
 SE_alloc_func(SE_StaticArenaAlloc) {
     SE_mem_arena* mem = ctx; 
     if (newsize == 0) {
@@ -61,4 +57,23 @@ SE_mem_arena* SE_HeapArenaCreate(u64 size) {
     m->cap = size;
     m->size = 0;
     return m;
+}
+
+SE_alloc_func(SE_HeapGlobalAlloc) {
+    SE_mem_arena* mem = ctx; 
+    if (newsize == 0) {
+        SE_HeapFree(ptr);
+        return NULL;
+    }
+
+    //malloc
+    void* new; 
+
+    if (ptr) {
+        new = SE_HeapRealloc(ptr, newsize);
+    } else {
+        new = SE_HeapAlloc(newsize);
+    }
+
+    return new;
 }
