@@ -1,6 +1,7 @@
 #include "render/cache.h"
 #include "render/utils.h"
 #include "render/vertex.h"
+#include "user.h"
 #include "util.h"
 #include <assert.h>
 #include <platform.h>
@@ -170,7 +171,17 @@ void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 
     SE_push_pass(p, s);
 }
 
-SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_render_pipeline_info* info, const SE_pipeline_cache* c) {
+
+void SE_NextRenderPass(SE_render_pipeline_info* p) {
+    SE_sub_pass s = (SE_sub_pass) {
+        .num = 0
+    };
+    SE_push_pass(p, s);
+}
+
+SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render_pipeline_info* info, const SE_pipeline_cache* c) {
+    SE_NextRenderPass(info);
+
     SE_render_pipeline p = {0};
     p.numSubpasses = info->psize;
     p.mem.ctx = SE_HeapArenaCreate(KB(10));
@@ -216,6 +227,8 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_r
         }
     }
 
+
+
     SE_Log("%d %d %d %d\n", num_colors, num_depth, num_input, num_resolve);
 
 
@@ -246,11 +259,47 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_r
     u32 curr_colors = 0;
     u32 curr_depth = 0;
     u32 curr_resolve = 0;
+    u32 numSubpasses = 0;
 
+    p.numPasses = 0;
+    for (u32 i = 0; i < info->psize; i++) {
+        if (info->passes[i].num == 0) p.numPasses++;
+    }
+    p.rpasses = p.mem.alloc(0, sizeof(SE_render_pass) * p.numPasses, NULL, p.mem.ctx);
+
+    u32 currRpass = 0;
 
     //Each step needs to build the description and the
     //reference, then finalize the subpass
+    SE_Log("Psize: %d\n", info->psize);
     for (u32 i = 0; i < info->psize; i++) {
+        SE_Log("Pass: %d\n", i);
+        if (info->passes[i].num == 0) {
+            //build renderpasses
+
+            VkRenderPassCreateInfo rinfo = (VkRenderPassCreateInfo) {
+                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+                    .subpassCount = numSubpasses,
+                    .dependencyCount = numSubpasses,
+                    .pSubpasses = subDes,
+                    .pDependencies = subDep,
+                    .attachmentCount = info->atsize,
+                    .pAttachments = descrip,
+            };
+
+            curr_input = 0;
+            curr_colors = 0;
+            curr_depth = 0;
+            curr_resolve = 0;
+            numSubpasses = 0;
+
+            SE_Log("passes: %d\n", info->psize);
+
+            REQUIRE_ZERO(vkCreateRenderPass(r->l, &rinfo, NULL, &p.rpasses[currRpass++].rp));
+            continue;
+        }
+        numSubpasses++;
+
         u32 start_input = curr_input;
         u32 start_colors = curr_colors;
         u32 start_depth = curr_depth;
@@ -324,133 +373,147 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_r
         };
     }
 
-    VkRenderPassCreateInfo rinfo = (VkRenderPassCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .subpassCount = info->psize,
-        .dependencyCount = info->psize,
-        .pSubpasses = subDes,
-        .pDependencies = subDep,
-        .attachmentCount = info->atsize,
-        .pAttachments = descrip,
-    };
-
-    SE_Log("passes: %d\n", info->psize);
-
-    p.numPasses = 1;
-    p.rpasses = p.mem.alloc(0, sizeof(SE_render_pass) * p.numPasses, NULL, p.mem.ctx);
-    REQUIRE_ZERO(vkCreateRenderPass(r->l, &rinfo, NULL, &p.rpasses[0].rp));
 
     //Build pipelines
+    //TODO(ELI): Setup Pipeline Cache file
+    //Apparently Base Pipeline is not useful, so don't
+    //bother implementing
+
+    //TODO(ELI): Hash pipelines? If there are two renderpasses,
+    //and the first subpasses both use the same pipeline,
+    //they can share pipelines. Hashing might help ensure
+    //that it works
+
+    u32 subp = 0;
+    u32 rp = 0;
+    for (u32 j = 0; j < info->psize; j++) {
+
+        if (info->passes[j].num == 0) { 
+            subp = 0;
+            rp++;
+            continue;
+        }
+
+        u32 i = info->shaders[info->passes[j].shader].pipelineIdx;
+        SE_Log("Pipeline Requested:\n");
+        SE_Log("\tshaders: %d\n", c->pipelines[i].shaders);
+        VkPipelineShaderStageCreateInfo stages[2] = {
+            (VkPipelineShaderStageCreateInfo) {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .module = info->shaders[c->pipelines[i].shaders].vert,
+                .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                .pName = "main",
+            },
+            (VkPipelineShaderStageCreateInfo) {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .module = info->shaders[c->pipelines[i].shaders].frag,
+                .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .pName = "main",
+            },
+        };
+
+        VkPipelineInputAssemblyStateCreateInfo assemInfo = (VkPipelineInputAssemblyStateCreateInfo){
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+            .topology = SE_primitive_map[c->pipelines[i].t],
+            .primitiveRestartEnable = VK_FALSE,
+        };
+
+        VkPipelineRasterizationStateCreateInfo rasterInfo = (VkPipelineRasterizationStateCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+            .cullMode = SE_cull_mode_map[c->pipelines[i].raster.cull_mode],
+            .polygonMode = SE_polygon_mode_map[c->pipelines[i].raster.polymode],
+
+            .depthBiasEnable = c->pipelines[i].raster.depthBias,
+            .depthBiasConstantFactor = c->pipelines[i].raster.depthBiasConstantFactor,
+            .depthBiasSlopeFactor = c->pipelines[i].raster.depthBiasSlopeFactor,
+            .depthBiasClamp = c->pipelines[i].raster.depthBiasClamp,
+            .depthClampEnable = c->pipelines[i].raster.depthClamp,
+
+            .rasterizerDiscardEnable = c->pipelines[i].raster.rasterDiscard,
+            .frontFace = SE_frontface_map[c->pipelines[i].raster.winding],
+            .lineWidth = c->pipelines[i].raster.lineWidth ? c->pipelines[i].raster.lineWidth : 1.0f  //Force non-zero linewidth
+        };
+
+        VkPipelineMultisampleStateCreateInfo multiInfo = (VkPipelineMultisampleStateCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+            .minSampleShading = 1.0f,
+        };
+
+        VkPipelineDepthStencilStateCreateInfo depthInfo = (VkPipelineDepthStencilStateCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+            .depthBoundsTestEnable = c->pipelines[i].depth.depthTestEnable,
+            .depthWriteEnable = c->pipelines[i].depth.depthWriteEnable,
+            .depthCompareOp = SE_compare_map[c->pipelines[i].depth.op],
+            .stencilTestEnable = VK_FALSE,
+        };
+
+        VkPipelineColorBlendAttachmentState blendInfo = (VkPipelineColorBlendAttachmentState) {
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                .blendEnable = VK_FALSE,
+                .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .colorBlendOp = VK_BLEND_OP_ADD,
+                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+                .alphaBlendOp = VK_BLEND_OP_ADD,
+        };
+
+        VkPipelineColorBlendStateCreateInfo colorInfo = (VkPipelineColorBlendStateCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+                .logicOp = VK_LOGIC_OP_COPY,
+                .logicOpEnable = VK_FALSE,
+                .attachmentCount = 1,
+                .pAttachments = &blendInfo,
+                .blendConstants[0] = 0.0f,
+                .blendConstants[1] = 0.0f,
+                .blendConstants[2] = 0.0f,
+                .blendConstants[3] = 0.0f,
+        };
+
+        VkDynamicState states[] = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR,
+        };
+
+        VkPipelineDynamicStateCreateInfo dynstate = (VkPipelineDynamicStateCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+            .pDynamicStates = states,
+            .dynamicStateCount = ASIZE(states),
+        };
+
+        VkPipelineViewportStateCreateInfo viewInfo = (VkPipelineViewportStateCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+            .viewportCount = 1,
+            .scissorCount = 1,
+        };
 
 
-    VkPipelineShaderStageCreateInfo stages[2] = {
-        (VkPipelineShaderStageCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .module = info->shaders[0].vert,
-            .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .pName = "main",
-        },
-        (VkPipelineShaderStageCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .module = info->shaders[0].frag,
-            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .pName = "main",
-        },
-    };
+        VkGraphicsPipelineCreateInfo pipeInfo = (VkGraphicsPipelineCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .basePipelineHandle = NULL,
+            .basePipelineIndex = 0,
+            .layout = info->shaders[0].layout,
+            .stageCount = 2,
+            .pStages = stages, 
+            .pVertexInputState = &info->verts[0].inputstate,
+            .pInputAssemblyState = &assemInfo,
+            .pTessellationState = NULL,
+            .pViewportState = &viewInfo,
+            .pRasterizationState = &rasterInfo,
+            .pMultisampleState = &multiInfo,
+            .pDepthStencilState = &depthInfo,
+            .pColorBlendState = &colorInfo,
+            .pDynamicState = &dynstate,
 
-    VkPipelineInputAssemblyStateCreateInfo assemInfo = (VkPipelineInputAssemblyStateCreateInfo){
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE,
-    };
+            .renderPass = p.rpasses[rp].rp,
+            .subpass = subp++,
+        };
 
+        p.pipelines = p.mem.alloc(0, sizeof(VkPipeline), NULL, p.mem.ctx);
+        REQUIRE_ZERO(vkCreateGraphicsPipelines(r->l, NULL, 1, &pipeInfo, NULL, &p.pipelines[0]));
+    }
 
-    VkPipelineRasterizationStateCreateInfo rasterInfo = (VkPipelineRasterizationStateCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .cullMode = VK_CULL_MODE_NONE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .depthBiasEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
-        .lineWidth = 1.0f
-    };
-
-    VkPipelineMultisampleStateCreateInfo multiInfo = (VkPipelineMultisampleStateCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        .minSampleShading = 1.0f,
-    };
-
-    VkPipelineDepthStencilStateCreateInfo depthInfo = (VkPipelineDepthStencilStateCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthBoundsTestEnable = VK_FALSE,
-        .stencilTestEnable = VK_FALSE,
-    };
-
-    VkPipelineColorBlendAttachmentState blendInfo = (VkPipelineColorBlendAttachmentState) {
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-        .blendEnable = VK_FALSE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .colorBlendOp = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .alphaBlendOp = VK_BLEND_OP_ADD,
-    };
-
-    VkPipelineColorBlendStateCreateInfo colorInfo = (VkPipelineColorBlendStateCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOp = VK_LOGIC_OP_COPY,
-        .logicOpEnable = VK_FALSE,
-        .attachmentCount = 1,
-        .pAttachments = &blendInfo,
-        .blendConstants[0] = 0.0f,
-        .blendConstants[1] = 0.0f,
-        .blendConstants[2] = 0.0f,
-        .blendConstants[3] = 0.0f,
-    };
-
-    VkDynamicState states[] = {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR,
-    };
-
-    VkPipelineDynamicStateCreateInfo dynstate = (VkPipelineDynamicStateCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .pDynamicStates = states,
-        .dynamicStateCount = ASIZE(states),
-    };
-
-    VkPipelineViewportStateCreateInfo viewInfo = (VkPipelineViewportStateCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .scissorCount = 1,
-    };
-
-
-    VkGraphicsPipelineCreateInfo pipeInfo = (VkGraphicsPipelineCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .basePipelineHandle = NULL,
-        .basePipelineIndex = 0,
-        .layout = info->shaders[0].layout,
-        .stageCount = 2,
-        .pStages = stages, 
-        .pVertexInputState = &info->verts[0].inputstate,
-        .pInputAssemblyState = &assemInfo,
-        .pTessellationState = NULL,
-        .pViewportState = &viewInfo,
-        .pRasterizationState = &rasterInfo,
-        .pMultisampleState = &multiInfo,
-        .pDepthStencilState = &depthInfo,
-        .pColorBlendState = &colorInfo,
-        .pDynamicState = &dynstate,
-
-        .renderPass = p.rpasses[0].rp,
-        .subpass = 0,
-    };
-
-    p.pipelines = p.mem.alloc(0, sizeof(VkPipeline), NULL, p.mem.ctx);
-    REQUIRE_ZERO(vkCreateGraphicsPipelines(r->l, NULL, 1, &pipeInfo, NULL, &p.pipelines[0]));
 
     SE_CreateFrameBuffers(r, &p);
     p.s = SE_CreateSyncObjs(r);
@@ -460,6 +523,9 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_r
 }
 
 void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
+
+    //One framebuffer per pass, except final pass
+
     p->numframebuffers = r->s.numImgs + p->numSubpasses;
     p->framebuffers = SE_HeapAlloc(sizeof(VkFramebuffer) * r->s.numImgs);
 
@@ -482,7 +548,7 @@ void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
 }
 
 //temporary
-void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_resource_arena* vert) {
+SE_DrawFrameFunc(SE_DrawFrame) {
 
     static u32 frame = 0;
     frame = (frame + 1) % r->s.numImgs;
@@ -540,7 +606,7 @@ void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, S
     for (u32 i = 0; i < p->numSubpasses; i++) {
         vkCmdBindPipeline(r->cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelines[0]);
         VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(r->cmd, 0, 1, (VkBuffer*)&vert->resource, offsets);
+        vkCmdBindVertexBuffers(r->cmd, 0, 1, (VkBuffer*)&vert->mem->resource, offsets);
         vkCmdDraw(r->cmd, 3, 1, 0, 0);
     }
 

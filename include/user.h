@@ -81,13 +81,13 @@ typedef struct SE_user_state {
     void (x)(SE_render_pipeline_info* p, u32 vert, u32 target, u32 shader)
 
 #define SE_EndPipelineCreationFunc(x) \
-    SE_render_pipeline (x)(const SE_render_context* r, const SE_render_pipeline_info* info, const SE_pipeline_cache* c)
+    SE_render_pipeline (x)(const SE_render_context* r, SE_render_pipeline_info* info, const SE_pipeline_cache* c)
 
 #define SE_CreateSyncObjsFunc(x) \
     SE_sync_objs (x)(const SE_render_context* r)
 
 #define SE_DrawFrameFunc(x) \
-    void (x)(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_resource_arena* vert)
+    void (x)(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_render_buffer* vert)
 
 typedef SE_LoadShaderFunc(*SE_load_shader_func);
 typedef SE_CreateVertSpecInlineFunc(*SE_create_vert_spec_inline_func);

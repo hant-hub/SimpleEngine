@@ -10,7 +10,6 @@
 
 #include "init.h"
 #include <stdio.h>
-#include <string.h>
 #include <user.h>
 #include <generated/generated_struct.h>
 
@@ -91,6 +90,10 @@ SE_INIT_FUNC(Init) {
 
    s->PushPipelineType(&c, (SE_pipeline_options){
            .shaders = sidx, 
+           .view = {
+                .view = SE_DEFAULT_VIEW,
+                .scissor = SE_DEFAULT_SCISSOR
+           },
    });
 
 
@@ -110,7 +113,7 @@ SE_UPDATE_FUNC(Update) {
 }
 
 SE_DRAW_FUNC(Draw) {
-    s->DrawFrame(s->w, &s->r, &pipe, &vertex);
+    s->DrawFrame(s->w, &s->r, &pipe, &vbuf);
 }
 
 

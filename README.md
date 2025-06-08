@@ -7,21 +7,38 @@ audio, etc.
 
 
 ## TODO:
+- [ ] Better Internal/User Arguement Sync
+    - [ ] Rearchitect includes to allow top level user include
+    - [ ] Separate out types and function declarations
+    - [ ] Replace function declarations with macros
+    - [ ] Extend Preprocessor to autopopulate Macros and API
 - [ ] Transition to newer version of SimpleBuild
     - [X] Linux Build
     - [ ] Windows Build
 - [ ] Imperative Style Pipeline Creation
-    - [ ] Pipeline Info
+    - [X] Pipeline Info
     - [ ] Depth Attachments
     - [ ] Input Attachments
     - [ ] Preserve Attachments
     - [ ] Pipeline Caching and Creation
     - [ ] FrameBuffer Creation
+         - [ ] One per Renderpass
     - [ ] Multipass targeting
     - [ ] Command Buffer creation
+        - [ ] Secondary Buffers
 - [ ] Shader analysis
     - [ ] GLSL preprocessor
     - [ ] Automatic Descriptor set creation
+- [ ] Additional Features
+    - [ ] Obj parser, should be fairly easy
+    - [ ] More Opaque Passes
+        - [ ] Text
+        - [ ] Sprite
+        - [ ] Solid Blocks (Solid colors)
+    - [ ] Post Processing Passes
+        - [ ] Sharpness
+        - [ ] Color Mapping
+        - [ ] Saturation
 
 
 ### Low Priority
@@ -34,3 +51,4 @@ from libc. Although it may be less efficient without a lot of work.
 - [ ] Image Loading
 - [ ] Audio
 - [ ] Threading
+- [ ] Pipeline Cache

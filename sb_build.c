@@ -36,7 +36,9 @@ int main(int argc, char* argv[]) {
 
             sb_add_file("src/render/vulkan.c");
             sb_add_file("src/util.c");
+
             sb_add_file("src/math/math.c");
+            sb_add_header("include/render/platform.h");
 
             sb_export_command();
         }

@@ -122,7 +122,7 @@ SE_sync_objs SE_CreateSyncObjs(const SE_render_context* r);
 
 //Pipeline Creation
 SE_render_pipeline_info SE_BeginPipelineCreation(void);
-SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, const SE_render_pipeline_info* info, const SE_pipeline_cache* c);
+SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r, SE_render_pipeline_info* info, const SE_pipeline_cache* c);
 
 //Add resource
 u32 SE_AddShader(SE_render_pipeline_info* p, SE_shaders* s);
@@ -133,6 +133,6 @@ void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 
 
 //Resize and Draw
 void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p);
-void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_resource_arena* vert);
+void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_render_buffer* vert);
 
 #endif
