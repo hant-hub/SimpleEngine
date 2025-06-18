@@ -84,7 +84,9 @@ SE_INIT_FUNC(Init) {
    SE_render_pipeline_info p = s->BeginPipelineCreation(); 
 
    u32 vidx = s->AddVertSpec(&p, &sv);
-   u32 sidx = s->AddShader(&p, &sh);
+   u32 sidx = s->AddShader(&p, &sh, 0);
+
+   u32 depth = s->AddDepthAttachment(&p);
 
    SE_pipeline_cache c = s->InitPipelineCache(global);
 
@@ -96,8 +98,21 @@ SE_INIT_FUNC(Init) {
            },
    });
 
+   s->PushPipelineType(&c, (SE_pipeline_options){
+           .shaders = sidx, 
+           .depth = {
+                .depthTestEnable = TRUE,
+                .depthWriteEnable = TRUE,
+           },
+           .view = {
+                .view = SE_DEFAULT_VIEW,
+                .scissor = SE_DEFAULT_SCISSOR
+           },
+   });
 
-   s->OpqaueNoDepthPass(&p, 0, 0, sidx);
+
+   //s->OpaquePass(&p, 0, 0, 1, sidx);
+   s->OpaqueNoDepthPass(&p, 0, 0, sidx);
 
    printf("RenderPass Info:\n");
    for (u32 i = 0; i < p.psize; i++) {

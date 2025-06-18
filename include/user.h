@@ -69,10 +69,13 @@ typedef struct SE_user_state {
     void (x)(SE_pipeline_cache* c, SE_pipeline_options o)
 
 #define SE_AddShaderFunc(x) \
-    u32 (x)(SE_render_pipeline_info* p, SE_shaders* s)
+    u32 (x)(SE_render_pipeline_info* p, SE_shaders* s, u32 pipeline)
 
 #define SE_AddVertSpecFunc(x) \
     u32 (x)(SE_render_pipeline_info* p, SE_vertex_spec* v)
+
+#define SE_AddDepthAttachmentFunc(x) \
+    u32 (x)(SE_render_pipeline_info* p)
 
 #define SE_BeginPipelineCreationFunc(x) \
     SE_render_pipeline_info (x)(void)
@@ -80,8 +83,11 @@ typedef struct SE_user_state {
 #define SE_OpqaueNoDepthPassFunc(x) \
     void (x)(SE_render_pipeline_info* p, u32 vert, u32 target, u32 shader)
 
+#define SE_OpaquePassFunc(x) \
+    void (x)(SE_render_pipeline_info* p, u32 vert, u32 target, u32 depth, u32 shader)
+
 #define SE_EndPipelineCreationFunc(x) \
-    SE_render_pipeline (x)(const SE_render_context* r, SE_render_pipeline_info* info, const SE_pipeline_cache* c)
+    SE_render_pipeline (x)(SE_render_context* r, SE_render_pipeline_info* info, const SE_pipeline_cache* c)
 
 #define SE_CreateSyncObjsFunc(x) \
     SE_sync_objs (x)(const SE_render_context* r)
@@ -100,8 +106,10 @@ typedef SE_PushPipelineTypeFunc(*SE_push_pipeline_type_func);
 typedef SE_FreePipelineCacheFunc(*SE_free_pipeline_cache_func);
 typedef SE_AddShaderFunc(*SE_add_shader_func);
 typedef SE_AddVertSpecFunc(*SE_add_vert_spec_func);
+typedef SE_AddDepthAttachmentFunc(*SE_add_depth_attachment_func);
 typedef SE_BeginPipelineCreationFunc(*SE_begin_pipeline_creation_func);
-typedef SE_OpqaueNoDepthPassFunc(*SE_opque_no_depth_pass_func);
+typedef SE_OpqaueNoDepthPassFunc(*SE_opaque_no_depth_pass_func);
+typedef SE_OpaquePassFunc(*SE_opaque_pass_func);
 typedef SE_EndPipelineCreationFunc(*SE_end_pipeline_creation_func);
 typedef SE_CreateSyncObjsFunc(*SE_create_sync_objs_func);
 typedef SE_DrawFrameFunc(*SE_draw_frame_func);
@@ -144,10 +152,12 @@ typedef struct SE {
 
     SE_add_shader_func AddShader;
     SE_add_vert_spec_func AddVertSpec;
+    SE_add_depth_attachment_func AddDepthAttachment;
 
     SE_free_pipeline_cache_func FreePipelineCache;
     SE_begin_pipeline_creation_func BeginPipelineCreation;
-    SE_opque_no_depth_pass_func OpqaueNoDepthPass;
+    SE_opaque_no_depth_pass_func OpaqueNoDepthPass;
+    SE_opaque_pass_func OpaquePass;
     SE_end_pipeline_creation_func EndPipelineCreation;
 
     SE_create_sync_objs_func CreateSyncObjs;

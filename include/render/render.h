@@ -55,6 +55,15 @@ typedef struct SE_render_context {
     VkCommandPool pool;
     VkCommandBuffer cmd;
 
+    //Optimal tiling, I don't think linear tiling will
+    //be necessary
+    
+    //For copies and CPU uploads just use a VkBuffer
+
+    VkFormat depthFormat;
+    VkFormat stencilFormat;
+    VkFormat depthStencilFormat;
+
     struct Queues {
         u32 gfam;
         u32 pfam;

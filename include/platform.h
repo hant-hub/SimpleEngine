@@ -17,7 +17,7 @@ typedef int SE_window;
 
 #ifdef SE_DEBUG_CONSOLE
     void SE_printf(const char* format, ...);
-    #define SE_Log(...) SE_printf(__VA_ARGS__)
+    #define SE_Log(x, ...) SE_printf(__FILE__ ":%d]:\t" x, __LINE__,##__VA_ARGS__)
 #else
     #define SE_Log(x, ...)
 #endif

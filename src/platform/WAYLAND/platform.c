@@ -129,10 +129,12 @@ int main(int argc, char* argv[]) {
 
             .AddShader = SE_AddShader,
             .AddVertSpec = SE_AddVertSpec,
+            .AddDepthAttachment = SE_AddDepthAttachment,
 
             .FreePipelineCache = SE_FreePipelineCache,
             .BeginPipelineCreation = SE_BeginPipelineCreation,
-            .OpqaueNoDepthPass = SE_OpqaueNoDepthPass,
+            .OpaqueNoDepthPass = SE_OpqaueNoDepthPass,
+            .OpaquePass = SE_OpqauePass,
             .EndPipelineCreation = SE_EndPipelineCreation,
             .CreateSyncObjs = SE_CreateSyncObjs,
             .DrawFrame = SE_DrawFrame,

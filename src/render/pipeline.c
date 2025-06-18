@@ -142,8 +142,9 @@ SE_render_pipeline_info SE_BeginPipelineCreation(void) {
     return info;
 }
 
-u32 SE_AddShader(SE_render_pipeline_info* p, SE_shaders* s) {
+u32 SE_AddShader(SE_render_pipeline_info* p, SE_shaders* s, u32 pipeline) {
     u32 output = p->ssize;
+    s->pipelineIdx = pipeline;
     SE_push_shaders(p, *s); 
     return output;
 }
@@ -152,6 +153,41 @@ u32 SE_AddVertSpec(SE_render_pipeline_info* p, SE_vertex_spec* v) {
     u32 output = p->vsize;
     SE_push_vert(p, *v); 
     return output;
+}
+
+//TODO(ELI): Functions for making each attachment type
+
+u32 SE_AddDepthAttachment(SE_render_pipeline_info* p) {
+    SE_push_attachment(p, SE_DepthImg);
+    return p->atsize - 1;
+}
+
+u32 SE_AddStencilAttachment(SE_render_pipeline_info* p) {
+    SE_Log("Not Implemented\n");
+    assert(0);
+    return -1;
+}
+
+//Generally depth and stencil attachments have to be combined, its kinda lame
+//but it makes a lot of sense, a stencil is just an attachment with maximum depth
+//and minimum depths which either prevent or allow rendering
+u32 SE_AddDepthAndStencilAttachment(SE_render_pipeline_info* p) {
+    SE_Log("Not Implemented\n");
+    assert(0);
+    return -1;
+}
+
+u32 SE_AddColorAttachment(SE_render_pipeline_info* p) {
+    SE_Log("Not Implemented\n");
+    assert(0);
+    return -1;
+}
+
+//General purpose attachment, essentially a fancy buffer
+u32 SE_AddInputAttachment(SE_render_pipeline_info* p) {
+    SE_Log("Not Implemented\n");
+    assert(0);
+    return -1;
 }
 
 void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 shader) {
@@ -171,6 +207,29 @@ void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 
     SE_push_pass(p, s);
 }
 
+void SE_OpqauePass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 depth, u32 shader) {
+    SE_subpass_attach a = (SE_subpass_attach) {
+        .usage = SE_attach_color,
+        .attach_idx = target,
+    };
+
+    SE_subpass_attach d = (SE_subpass_attach) {
+        .usage = SE_attach_depth,
+        .attach_idx = depth,
+    };
+
+    SE_sub_pass s = (SE_sub_pass) {
+        .shader = shader,
+        .vert = vert,
+        .start = p->rsize,
+        .num = 2,
+    };
+
+    SE_push_attach_ref(p, a); 
+    SE_push_attach_ref(p, d); 
+    SE_push_pass(p, s);
+}
+
 
 void SE_NextRenderPass(SE_render_pipeline_info* p) {
     SE_sub_pass s = (SE_sub_pass) {
@@ -179,7 +238,7 @@ void SE_NextRenderPass(SE_render_pipeline_info* p) {
     SE_push_pass(p, s);
 }
 
-SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render_pipeline_info* info, const SE_pipeline_cache* c) {
+SE_render_pipeline SE_EndPipelineCreation(SE_render_context* r,  SE_render_pipeline_info* info, const SE_pipeline_cache* c) {
     SE_NextRenderPass(info);
 
     SE_render_pipeline p = {0};
@@ -192,6 +251,9 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
         .alloc = SE_StaticArenaAlloc,
         .ctx = m
     };
+
+    p.backingmem = SE_CreateResourceTrackerRaw(r, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, MB(1));
+
 
     //make attachments
     // 0 is always the screen
@@ -277,13 +339,15 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
         if (info->passes[i].num == 0) {
             //build renderpasses
 
+            SE_Log("Renderpass Attachment Count: %d\n", curr_descrip);
+
             VkRenderPassCreateInfo rinfo = (VkRenderPassCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
                     .subpassCount = numSubpasses,
                     .dependencyCount = numSubpasses,
                     .pSubpasses = subDes,
                     .pDependencies = subDep,
-                    .attachmentCount = info->atsize,
+                    .attachmentCount = curr_descrip,
                     .pAttachments = descrip,
             };
 
@@ -291,6 +355,7 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
             curr_colors = 0;
             curr_depth = 0;
             curr_resolve = 0;
+            curr_descrip = 0;
             numSubpasses = 0;
 
             SE_Log("passes: %d\n", info->psize);
@@ -333,14 +398,32 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
                         subDep[i].dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
                         if (info->attach_refs[j + info->passes[i].start].attach_idx == 0) {
-                            SE_Log("hit\n");
                             descrip[curr_descrip].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
                         }
                     } break;
                 case SE_attach_depth:
                     {
-                        SE_Log("Not Implemented\n");
-                        assert(0);
+                        SE_Log("Depth attachment at: %d\n", curr_descrip);
+                        descrip[curr_descrip] = (VkAttachmentDescription) {
+                            .format = VK_FORMAT_D32_SFLOAT, //TODO(ELI): revisit later
+                            .samples = VK_SAMPLE_COUNT_1_BIT,
+                            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                        };
+
+
+                        depth[curr_depth++] = (VkAttachmentReference) {
+                            .attachment = curr_descrip,
+                            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                        };
+
+                        subDep[i].srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                        subDep[i].dstStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                        subDep[i].dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                     } break;
                 case SE_attach_input:
                     {
@@ -356,6 +439,13 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
             }
             curr_descrip++;
         }
+
+        SE_Log("Total Descriptions: %d\n", curr_descrip);
+        SE_Log("Attachments Required:\n");
+        SE_Log("\tcolor: %d\n", curr_colors - start_colors);
+        SE_Log("\tdepth: %d\n", curr_depth - start_depth);
+
+
         
         subDes[i] = (VkSubpassDescription) {
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -369,7 +459,7 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
             .pResolveAttachments = NULL, //would be the same as color attachments but with multisample buffers
                                          
             //TODO(ELI): Rework later to take advantage of single depth attachment
-            .pDepthStencilAttachment = (curr_depth - start_depth) ? &depth[curr_depth]: NULL,
+            .pDepthStencilAttachment = (curr_depth - start_depth) ? &depth[0]: NULL,
         };
     }
 
@@ -386,15 +476,22 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
 
     u32 subp = 0;
     u32 rp = 0;
-    for (u32 j = 0; j < info->psize; j++) {
+    Bool8* pipeline_built = a.alloc(0, sizeof(Bool8) * info->ssize, NULL, a.ctx);
+    SE_memset(pipeline_built, 0, sizeof(Bool8) * info->ssize);
 
+    for (u32 j = 0; j < info->psize; j++) {
         if (info->passes[j].num == 0) { 
             subp = 0;
             rp++;
             continue;
         }
-
+        u32 shader_idx = info->passes[j].shader;
         u32 i = info->shaders[info->passes[j].shader].pipelineIdx;
+
+        if (pipeline_built[shader_idx]) {
+            continue;
+        }
+
         SE_Log("Pipeline Requested:\n");
         SE_Log("\tshaders: %d\n", c->pipelines[i].shaders);
         VkPipelineShaderStageCreateInfo stages[2] = {
@@ -433,6 +530,9 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
             .frontFace = SE_frontface_map[c->pipelines[i].raster.winding],
             .lineWidth = c->pipelines[i].raster.lineWidth ? c->pipelines[i].raster.lineWidth : 1.0f  //Force non-zero linewidth
         };
+
+        SE_Log("Pipeline idx: %d\n", i);
+        SE_Log("Raster Discard Enable: %d\n", c->pipelines[i].raster.rasterDiscard);
 
         VkPipelineMultisampleStateCreateInfo multiInfo = (VkPipelineMultisampleStateCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
@@ -512,8 +612,17 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
 
         p.pipelines = p.mem.alloc(0, sizeof(VkPipeline), NULL, p.mem.ctx);
         REQUIRE_ZERO(vkCreateGraphicsPipelines(r->l, NULL, 1, &pipeInfo, NULL, &p.pipelines[0]));
-    }
 
+        pipeline_built[shader_idx] = TRUE;
+    }
+    
+    //TODO(ELI): make this better later
+    //Maybe find a better method later? Perhaps combine the config and render pipeline
+    //structs and just free the unused arrays?
+    p.num_attach = info->atsize;
+    p.attach_types = p.mem.alloc(0, sizeof(SE_attachment_type) * p.num_attach, NULL, p.mem.ctx);
+    p.imgs = p.mem.alloc(0, sizeof(VkImage) * p.num_attach, NULL, p.mem.ctx);
+    SE_memcpy(p.attach_types, info->attachments, sizeof(SE_attachment_type) * p.num_attach);
 
     SE_CreateFrameBuffers(r, &p);
     p.s = SE_CreateSyncObjs(r);
@@ -522,7 +631,58 @@ SE_render_pipeline SE_EndPipelineCreation(const SE_render_context* r,  SE_render
     return p;
 }
 
+//Frame Buffer Stuff ------------------------------------------------------------
+
+//TODO(ELI): Make all attachments, maybe consider system for
+//fixed resolution attachments
 void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
+
+    //make attachments
+    SE_Log("Attachments Requested: %d\n", p->num_attach);
+    for (u32 i = 0; i < p->num_attach; i++) {
+        switch (p->attach_types[i]) {
+            case SE_ColorImg:
+            {
+                SE_Log("Not Implemented\n");
+                assert(0);
+            } break;
+            case SE_DepthImg:
+            {
+                SE_Log("Depth Attachment: %d\n", r->depthFormat);
+                //assert(0); //force crash
+                VkImageCreateInfo imgInfo = {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                    .imageType = VK_IMAGE_TYPE_2D,
+                    .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .arrayLayers = 1,
+                    .extent = {
+                        .width = r->s.size.width,
+                        .height = r->s.size.height,
+                        .depth = 1,
+                    },
+                    .mipLevels = 1,
+                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .tiling = VK_IMAGE_TILING_OPTIMAL,
+                    .format = r->depthFormat,
+                };
+
+                REQUIRE_ZERO(vkCreateImage(r->l, &imgInfo, NULL, &p->imgs[i]));
+
+                VkMemoryRequirements memreqs;
+                vkGetImageMemoryRequirements(r->l, p->imgs[i], &memreqs);
+                u64 offset = SE_CreateRaw(&p->backingmem, memreqs.size);  
+                REQUIRE_ZERO(vkBindImageMemory(r->l, p->imgs[i], p->backingmem.devMem, offset)); 
+            } break;
+            case SE_SwapImg:
+            {
+                SE_Log("Swap Attachment, Skipping\n");
+            } break;
+        }
+    }
+
+
 
     //One framebuffer per pass, except final pass
 
@@ -533,6 +693,7 @@ void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
         VkImageView views[] = {
             r->s.views[i],
         };
+
         VkFramebufferCreateInfo frameInfo = {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .pAttachments = views,
@@ -546,6 +707,10 @@ void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
         REQUIRE_ZERO(vkCreateFramebuffer(r->l, &frameInfo, NULL, &p->framebuffers[i]));
     }
 }
+
+//--------------------------------------------------------------------------------
+
+
 
 //temporary
 SE_DrawFrameFunc(SE_DrawFrame) {
@@ -590,14 +755,21 @@ SE_DrawFrameFunc(SE_DrawFrame) {
     vkCmdBeginRenderPass(r->cmd, &rpassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     VkViewport view = (VkViewport) {
-        .height = r->s.size.height,
-        .width = r->s.size.width,
-        .maxDepth = 1,
+        .height = SE_DEFAULT_VIEW.height * r->s.size.height,
+        .width = SE_DEFAULT_VIEW.width * r->s.size.width,
+        .maxDepth = SE_DEFAULT_VIEW.depthRange + SE_DEFAULT_VIEW.depthBase,
+        .minDepth = SE_DEFAULT_VIEW.depthBase
     };
 
     VkRect2D scissor = (VkRect2D) {
-        .extent = r->s.size,
-        .offset = {0, 0},
+        .extent = {
+            .width = r->s.size.width * SE_DEFAULT_SCISSOR.size.c.x,
+            .height = r->s.size.height * SE_DEFAULT_SCISSOR.size.c.y
+        },
+        .offset = {
+            .x = SE_DEFAULT_SCISSOR.offset.c.x * r->s.size.width, 
+            .y = SE_DEFAULT_SCISSOR.offset.c.y * r->s.size.height
+        },
     };
 
     vkCmdSetViewport(r->cmd, 0, 1, &view);

@@ -420,6 +420,63 @@ SE_render_context SE_CreateRenderContext(SE_window* win) {
         REQUIRE_ZERO(vkAllocateCommandBuffers(rc.l, &cmdAlloc, &rc.cmd));
     }
 
+
+    //Set Global Depth and Stencil formats
+    
+    {
+        VkFormat depthFormats[] = {
+            VK_FORMAT_D32_SFLOAT,
+            VK_FORMAT_D32_SFLOAT_S8_UINT,
+            VK_FORMAT_D24_UNORM_S8_UINT
+        };
+        
+        for (u32 i = 0; i < ASIZE(depthFormats); i++) {
+            VkFormatProperties props;
+            vkGetPhysicalDeviceFormatProperties(rc.p, depthFormats[i], &props);
+
+            if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+                rc.depthFormat = depthFormats[i];
+                break;
+            }
+        }
+
+        VkFormat stencilFormats[] = {
+            VK_FORMAT_S8_UINT,
+            VK_FORMAT_D16_UNORM_S8_UINT,
+            VK_FORMAT_D24_UNORM_S8_UINT,
+            VK_FORMAT_D32_SFLOAT_S8_UINT
+        };
+
+        for (u32 i = 0; i < ASIZE(stencilFormats); i++) {
+            VkFormatProperties props;
+            vkGetPhysicalDeviceFormatProperties(rc.p, stencilFormats[i], &props);
+
+            if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+                rc.stencilFormat = stencilFormats[i];
+                break;
+            }
+        }
+
+        VkFormat depthStencilFormats[] = {
+            VK_FORMAT_D16_UNORM_S8_UINT,
+            VK_FORMAT_D24_UNORM_S8_UINT,
+            VK_FORMAT_D32_SFLOAT_S8_UINT
+        };
+
+        for (u32 i = 0; i < ASIZE(stencilFormats); i++) {
+            VkFormatProperties props;
+            vkGetPhysicalDeviceFormatProperties(rc.p, depthStencilFormats[i], &props);
+
+            if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+                rc.depthStencilFormat = depthStencilFormats[i];
+                break;
+            }
+        }
+
+    }
+
+
+
     rc.m = SE_CreateHeapTrackers(&rc);
     SE_HeapFree(m);
     return rc;
