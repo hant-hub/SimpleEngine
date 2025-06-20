@@ -175,8 +175,4 @@ typedef struct SE_pipeline_cache {
     u32 size;
 } SE_pipeline_cache;
 
-
-SE_pipeline_cache SE_InitPipelineCache(const SE_allocator a);
-void SE_PushPipelineType(SE_pipeline_cache* c, SE_pipeline_options o);
-void SE_FreePipelineCache(SE_pipeline_cache* c);
 #endif

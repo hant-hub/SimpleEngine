@@ -13,6 +13,4 @@ typedef struct SE_vertex_spec {
     u32 numbindings;
 } SE_vertex_spec;
 
-SE_vertex_spec SE_CreateVertSpecInline(SE_allocator* a, SE_struct_member* mem, u64 size);
-
 #endif

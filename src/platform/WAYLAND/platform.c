@@ -20,6 +20,7 @@
 #include <render/pipeline.h>
 
 #include <user.h>
+#include <internal.h>
 
 #include "math/mat.h"
 
@@ -113,11 +114,9 @@ int main(int argc, char* argv[]) {
     wl_display_roundtrip(w.display);
     wl_surface_commit(w.wsurf);
 
-
     //init Vulkan
     SE api = (SE) {
         .w = &w,
-
             //render
             .LoadShaders = SE_LoadShaders,
             .CreateVertSpecInline = SE_CreateVertSpecInline,

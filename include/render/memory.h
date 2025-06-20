@@ -36,13 +36,4 @@ typedef struct SE_render_buffer {
     u32 size;
 } SE_render_buffer;
 
-SE_render_memory SE_CreateHeapTrackers(SE_render_context* r);
-void SE_TransferMemory(SE_render_context* r, SE_render_buffer dst, const void* data, u64 size);
-
-SE_resource_arena SE_CreateResourceTrackerBuffer(SE_render_context* r, VkBufferUsageFlagBits flags, VkMemoryPropertyFlagBits props, u64 minsize);
-SE_render_buffer SE_CreateBuffer(SE_resource_arena* a, u64 size);
-
-SE_resource_arena SE_CreateResourceTrackerRaw(SE_render_context* r, VkMemoryPropertyFlagBits props, u64 minsize);
-u64 SE_CreateRaw(SE_resource_arena* a, u64 size);
-
 #endif

@@ -5,12 +5,11 @@ audio, etc.
 
 > In future we plan to have zero compile time dependencies.
 
-
 ## TODO:
-- [ ] Better Internal/User Arguement Sync
-    - [ ] Rearchitect includes to allow top level user include
-    - [ ] Separate out types and function declarations
-    - [ ] Replace function declarations with macros
+- [X] Better Internal/User Arguement Sync
+    - [X] Rearchitect includes to allow top level user include
+    - [X] Separate out types and function declarations
+    - [X] Replace function declarations with macros
     - [ ] Extend Preprocessor to autopopulate Macros and API
 - [ ] Transition to newer version of SimpleBuild
     - [X] Linux Build
@@ -22,10 +21,9 @@ audio, etc.
     - [ ] Preserve Attachments
     - [ ] Pipeline Caching and Creation
     - [ ] FrameBuffer Creation
-         - [ ] One per Renderpass
+         - [X] One per Renderpass
+         - [ ] SwapChain Special Handling
     - [ ] Multipass targeting
-    - [ ] Command Buffer creation
-        - [ ] Secondary Buffers
 - [ ] Shader analysis
     - [ ] GLSL preprocessor
     - [ ] Automatic Descriptor set creation

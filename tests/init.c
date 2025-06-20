@@ -17,7 +17,7 @@ static SE_shaders sh;
 static SE_resource_arena vertex;
 static SE_render_buffer vbuf;
 static SE_sync_objs sync;
-static SE_render_pipeline pipe;
+static SE_render_pipeline p;
 
 const static vert verts[] = {
     (vert){{0.0, -0.5, 0.5f},   {0, 0}},
@@ -81,7 +81,7 @@ SE_INIT_FUNC(Init) {
    };
 
 
-   SE_render_pipeline_info p = s->BeginPipelineCreation(); 
+   p = s->BeginPipelineCreation(); 
 
    u32 vidx = s->AddVertSpec(&p, &sv);
    u32 sidx = s->AddShader(&p, &sh, 0);
@@ -115,11 +115,11 @@ SE_INIT_FUNC(Init) {
    s->OpaqueNoDepthPass(&p, 0, 0, sidx);
 
    printf("RenderPass Info:\n");
-   for (u32 i = 0; i < p.psize; i++) {
-       printf("\t(%d, %d)\n", p.passes[i].start, p.passes[i].num);
+   for (u32 i = 0; i < p.pipelineInfo.psize; i++) {
+       printf("\t(%d, %d)\n", p.pipelineInfo.passes[i].start, p.pipelineInfo.passes[i].num);
    }
 
-   pipe = s->EndPipelineCreation(&s->r, &p, &c);
+   s->EndPipelineCreation(&s->r, &p, &c);
    s->FreePipelineCache(&c);
    s->HeapFree(a.ctx);
 }
@@ -128,7 +128,7 @@ SE_UPDATE_FUNC(Update) {
 }
 
 SE_DRAW_FUNC(Draw) {
-    s->DrawFrame(s->w, &s->r, &pipe, &vbuf);
+    s->DrawFrame(s->w, &s->r, &p, &vbuf);
 }
 
 

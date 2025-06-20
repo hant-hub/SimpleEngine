@@ -75,13 +75,4 @@ typedef struct SE_render_context {
     SE_render_memory m;
 } SE_render_context;
 
-//Heap allocates a scratch arena
-SE_render_context SE_CreateRenderContext(SE_window* win);
-
-//Either pass in a preallocated memory arena
-//Or pass Null and an arena will be automatically
-//allocated on the Heap for scratch work
-SE_swapchain SE_CreateSwapChain(SE_allocator* a, SE_render_context* r, SE_window* win, SE_swapchain* old);
-
-
 #endif

@@ -36,5 +36,4 @@ void SE_UnloadFile(SE_string* file);
 extern const char* SE_PlatformInstanceExtensions[];
 extern const u32 SE_PlatformInstanceExtensionCount; 
 
-
 #endif

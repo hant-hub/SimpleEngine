@@ -11,6 +11,8 @@
 
 typedef struct SE_render_pass {
     VkRenderPass rp;
+    u32 start;
+    u32 num;
 } SE_render_pass;
 
 
@@ -67,33 +69,7 @@ typedef struct SE_sync_objs {
     u32 numFrames;
 } SE_sync_objs;
 
-typedef struct SE_render_pipeline {
-    //backing memory for the pipeline
-    SE_allocator mem;
-    SE_resource_arena backingmem;
-
-    VkPipeline* pipelines;
-
-    SE_sync_objs s;
-
-    VkFramebuffer* framebuffers;
-    SE_render_pass* rpasses;
-
-    //Attachments
-    VkImage* imgs;
-    VkImageView* views;
-    SE_attachment_type* attach_types;
-
-    u32 num_attach;
-
-    u32 numframebuffers;
-    u32 numSubpasses;
-    u32 numPasses;
-} SE_render_pipeline;
-
-
 typedef struct SE_render_pipeline_info {
-
     SE_attachment_type* attachments; 
     u32 atsize;
     u32 atcap;
@@ -116,27 +92,34 @@ typedef struct SE_render_pipeline_info {
 
 } SE_render_pipeline_info;
 
+typedef struct SE_render_pipeline {
+    //backing memory for the pipeline
+    SE_allocator mem;
+    SE_resource_arena backingmem;
+    SE_render_pipeline_info pipelineInfo;
+
+    //One buffer per pass
+    //VkCommandPool pool;
+    //VkCommandBuffer* buffers;
+
+    VkPipeline* pipelines;
+    SE_sync_objs s;
+
+    VkFramebuffer* framebuffers;
+    SE_render_pass* rpasses;
+
+    //Attachments
+    VkImage* imgs;
+    VkImageView* views;
+    SE_attachment_type* attach_types;
+
+    u32 num_attach;
+
+    u32 numframebuffers;
+    u32 numSubpasses;
+    u32 numPasses;
+} SE_render_pipeline;
 
 
-SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* frag);
-SE_sync_objs SE_CreateSyncObjs(const SE_render_context* r);
-
-//Pipeline Creation
-SE_render_pipeline_info SE_BeginPipelineCreation(void);
-SE_render_pipeline SE_EndPipelineCreation(SE_render_context* r, SE_render_pipeline_info* info, const SE_pipeline_cache* c);
-
-//Add resource
-u32 SE_AddShader(SE_render_pipeline_info* p, SE_shaders* s, u32 pipeline);
-u32 SE_AddVertSpec(SE_render_pipeline_info* p, SE_vertex_spec* v);
-
-u32 SE_AddDepthAttachment(SE_render_pipeline_info* p);
-
-//Passes
-void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 shader);
-void SE_OpqauePass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 depth, u32 shader);
-
-//Resize and Draw
-void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p);
-void SE_DrawFrame(SE_window* win, SE_render_context* r, SE_render_pipeline* p, SE_render_buffer* vert);
 
 #endif

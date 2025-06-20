@@ -1,18 +1,19 @@
-#include "render/cache.h"
-#include "render/utils.h"
-#include "render/vertex.h"
-#include "user.h"
-#include "util.h"
+#include <stdint.h>
 #include <assert.h>
+
+#include <util.h>
+#include <internal.h>
 #include <platform.h>
+#include <render/cache.h>
+#include <render/utils.h>
+#include <render/vertex.h>
 #include <render/render.h>
 #include <render/pipeline.h>
 #include <render/memory.h>
-#include <stdint.h>
 #include <vulkan/vulkan_core.h>
 
 
-SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* frag) {
+SE_LoadShaderFunc(SE_LoadShaders) {
     SE_shaders s;
 
     SE_string vbuf = SE_LoadFile(vert);
@@ -48,7 +49,7 @@ SE_shaders SE_LoadShaders(SE_render_context* r, const char* vert, const char* fr
 }
 
 
-SE_sync_objs SE_CreateSyncObjs(const SE_render_context* r) {
+SE_CreateSyncObjsFunc(SE_CreateSyncObjs) {
     VkRenderPassCreateInfo i;
 
     SE_sync_objs s = {0};
@@ -76,6 +77,7 @@ SE_sync_objs SE_CreateSyncObjs(const SE_render_context* r) {
     return s;
 }
 
+//idk man maybe add stuff
 void SE_DestroySyncObjs(SE_render_context* r, SE_sync_objs* s) {
     for (u32 i = 0; i < s->numFrames; i++) {
         vkDestroySemaphore(r->l, s->finished[i], NULL);
@@ -135,21 +137,25 @@ void SE_push_vert(SE_render_pipeline_info* p, SE_vertex_spec v) {
  *  The final pass will use index zero always
  *
  */
-SE_render_pipeline_info SE_BeginPipelineCreation(void) {
+SE_BeginPipelineCreationFunc(SE_BeginPipelineCreation) {
     SE_render_pipeline_info info = (SE_render_pipeline_info){0};
     SE_push_attachment(&info, SE_SwapImg);
 
-    return info;
+    return (SE_render_pipeline){
+        .pipelineInfo = info
+    };
 }
 
-u32 SE_AddShader(SE_render_pipeline_info* p, SE_shaders* s, u32 pipeline) {
+SE_AddShaderFunc(SE_AddShader) {
+    SE_render_pipeline_info* p = &pipe->pipelineInfo;
     u32 output = p->ssize;
     s->pipelineIdx = pipeline;
     SE_push_shaders(p, *s); 
     return output;
 }
 
-u32 SE_AddVertSpec(SE_render_pipeline_info* p, SE_vertex_spec* v) {
+SE_AddVertSpecFunc(SE_AddVertSpec) {
+    SE_render_pipeline_info* p = &pipe->pipelineInfo;
     u32 output = p->vsize;
     SE_push_vert(p, *v); 
     return output;
@@ -157,7 +163,8 @@ u32 SE_AddVertSpec(SE_render_pipeline_info* p, SE_vertex_spec* v) {
 
 //TODO(ELI): Functions for making each attachment type
 
-u32 SE_AddDepthAttachment(SE_render_pipeline_info* p) {
+SE_AddDepthAttachmentFunc(SE_AddDepthAttachment) {
+    SE_render_pipeline_info* p = &pipe->pipelineInfo;
     SE_push_attachment(p, SE_DepthImg);
     return p->atsize - 1;
 }
@@ -190,7 +197,8 @@ u32 SE_AddInputAttachment(SE_render_pipeline_info* p) {
     return -1;
 }
 
-void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 shader) {
+SE_OpqaueNoDepthPassFunc(SE_OpqaueNoDepthPass) {
+    SE_render_pipeline_info* p = &pipe->pipelineInfo;
     SE_subpass_attach a = (SE_subpass_attach) {
         .usage = SE_attach_color,
         .attach_idx = target,
@@ -207,7 +215,8 @@ void SE_OpqaueNoDepthPass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 
     SE_push_pass(p, s);
 }
 
-void SE_OpqauePass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 depth, u32 shader) {
+SE_OpaquePassFunc(SE_OpqauePass) {
+    SE_render_pipeline_info* p = &pipe->pipelineInfo;
     SE_subpass_attach a = (SE_subpass_attach) {
         .usage = SE_attach_color,
         .attach_idx = target,
@@ -230,7 +239,6 @@ void SE_OpqauePass(SE_render_pipeline_info* p, u32 vert, u32 target, u32 depth, 
     SE_push_pass(p, s);
 }
 
-
 void SE_NextRenderPass(SE_render_pipeline_info* p) {
     SE_sub_pass s = (SE_sub_pass) {
         .num = 0
@@ -238,13 +246,13 @@ void SE_NextRenderPass(SE_render_pipeline_info* p) {
     SE_push_pass(p, s);
 }
 
-SE_render_pipeline SE_EndPipelineCreation(SE_render_context* r,  SE_render_pipeline_info* info, const SE_pipeline_cache* c) {
+SE_EndPipelineCreationFunc(SE_EndPipelineCreation) {
+    SE_render_pipeline_info* info = &p->pipelineInfo;
     SE_NextRenderPass(info);
 
-    SE_render_pipeline p = {0};
-    p.numSubpasses = info->psize;
-    p.mem.ctx = SE_HeapArenaCreate(KB(10));
-    p.mem.alloc = SE_StaticArenaAlloc;
+    p->numSubpasses = info->psize;
+    p->mem.ctx = SE_HeapArenaCreate(KB(10));
+    p->mem.alloc = SE_StaticArenaAlloc;
 
     SE_mem_arena* m = SE_HeapArenaCreate(KB(12));
     SE_allocator a = (SE_allocator) {
@@ -252,7 +260,7 @@ SE_render_pipeline SE_EndPipelineCreation(SE_render_context* r,  SE_render_pipel
         .ctx = m
     };
 
-    p.backingmem = SE_CreateResourceTrackerRaw(r, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, MB(1));
+    p->backingmem = SE_CreateResourceTrackerRaw(r, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, MB(1));
 
 
     //make attachments
@@ -323,11 +331,11 @@ SE_render_pipeline SE_EndPipelineCreation(SE_render_context* r,  SE_render_pipel
     u32 curr_resolve = 0;
     u32 numSubpasses = 0;
 
-    p.numPasses = 0;
+    p->numPasses = 0;
     for (u32 i = 0; i < info->psize; i++) {
-        if (info->passes[i].num == 0) p.numPasses++;
+        if (info->passes[i].num == 0) p->numPasses++;
     }
-    p.rpasses = p.mem.alloc(0, sizeof(SE_render_pass) * p.numPasses, NULL, p.mem.ctx);
+    p->rpasses = p->mem.alloc(0, sizeof(SE_render_pass) * p->numPasses, NULL, p->mem.ctx);
 
     u32 currRpass = 0;
 
@@ -360,7 +368,7 @@ SE_render_pipeline SE_EndPipelineCreation(SE_render_context* r,  SE_render_pipel
 
             SE_Log("passes: %d\n", info->psize);
 
-            REQUIRE_ZERO(vkCreateRenderPass(r->l, &rinfo, NULL, &p.rpasses[currRpass++].rp));
+            REQUIRE_ZERO(vkCreateRenderPass(r->l, &rinfo, NULL, &p->rpasses[currRpass++].rp));
             continue;
         }
         numSubpasses++;
@@ -606,36 +614,71 @@ SE_render_pipeline SE_EndPipelineCreation(SE_render_context* r,  SE_render_pipel
             .pColorBlendState = &colorInfo,
             .pDynamicState = &dynstate,
 
-            .renderPass = p.rpasses[rp].rp,
+            .renderPass = p->rpasses[rp].rp,
             .subpass = subp++,
         };
 
-        p.pipelines = p.mem.alloc(0, sizeof(VkPipeline), NULL, p.mem.ctx);
-        REQUIRE_ZERO(vkCreateGraphicsPipelines(r->l, NULL, 1, &pipeInfo, NULL, &p.pipelines[0]));
+        p->pipelines = p->mem.alloc(0, sizeof(VkPipeline), NULL, p->mem.ctx);
+        REQUIRE_ZERO(vkCreateGraphicsPipelines(r->l, NULL, 1, &pipeInfo, NULL, &p->pipelines[0]));
 
         pipeline_built[shader_idx] = TRUE;
     }
+
+    //Build command buffers
+
+    //SE_Log("Command Buffers:\n");
+    //SE_Log("\tcount: %d\n", info->psize);
+
+    //VkCommandPoolCreateInfo poolInfo = (VkCommandPoolCreateInfo) {
+    //    .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+    //    .queueFamilyIndex = r->Queues.gfam,
+    //};
+
+    //REQUIRE_ZERO(vkCreateCommandPool(r->l, &poolInfo, NULL, &p.pool));
+
+    //p.buffers = p.mem.alloc(0, sizeof(VkCommandBuffer) * info->psize, NULL, p.mem.ctx);
+    //VkCommandBufferAllocateInfo cmdInfo = (VkCommandBufferAllocateInfo) {
+    //    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+    //        .commandPool = p.pool,
+    //        .level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+    //        .commandBufferCount = info->psize,
+    //};
+
+    //REQUIRE_ZERO(vkAllocateCommandBuffers(r->l, &cmdInfo, p.buffers));
+    //u32 j = 0;
+    //for (u32 i = 0; i < info->psize; i++) {
+    //    if (info->passes[i].num == 0) {
+    //        j++;
+    //        continue;
+    //    }
+
+    //    VkCommandBufferBeginInfo begInfo = (VkCommandBufferBeginInfo) {
+    //        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    //    };
+
+    //}
     
     //TODO(ELI): make this better later
     //Maybe find a better method later? Perhaps combine the config and render pipeline
     //structs and just free the unused arrays?
-    p.num_attach = info->atsize;
-    p.attach_types = p.mem.alloc(0, sizeof(SE_attachment_type) * p.num_attach, NULL, p.mem.ctx);
-    p.imgs = p.mem.alloc(0, sizeof(VkImage) * p.num_attach, NULL, p.mem.ctx);
-    SE_memcpy(p.attach_types, info->attachments, sizeof(SE_attachment_type) * p.num_attach);
+    p->num_attach = info->atsize;
+    p->attach_types = p->mem.alloc(0, sizeof(SE_attachment_type) * p->num_attach, NULL, p->mem.ctx);
+    SE_memcpy(p->attach_types, info->attachments, sizeof(SE_attachment_type) * p->num_attach);
 
-    SE_CreateFrameBuffers(r, &p);
-    p.s = SE_CreateSyncObjs(r);
+    p->imgs = p->mem.alloc(0, sizeof(VkImage) * p->num_attach, NULL, p->mem.ctx);
+    p->views = p->mem.alloc(0, sizeof(VkImageView) * p->num_attach, NULL, p->mem.ctx);
+
+    SE_CreateFrameBuffers(r, p);
+    p->s = SE_CreateSyncObjs(r);
 
     SE_HeapFree(m);
-    return p;
 }
 
 //Frame Buffer Stuff ------------------------------------------------------------
 
 //TODO(ELI): Make all attachments, maybe consider system for
 //fixed resolution attachments
-void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
+SE_CreateFrameBuffersFunc(SE_CreateFrameBuffers) {
 
     //make attachments
     SE_Log("Attachments Requested: %d\n", p->num_attach);
@@ -669,11 +712,34 @@ void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
                 };
 
                 REQUIRE_ZERO(vkCreateImage(r->l, &imgInfo, NULL, &p->imgs[i]));
+                SE_Log("test\n");
 
                 VkMemoryRequirements memreqs;
                 vkGetImageMemoryRequirements(r->l, p->imgs[i], &memreqs);
                 u64 offset = SE_CreateRaw(&p->backingmem, memreqs.size);  
                 REQUIRE_ZERO(vkBindImageMemory(r->l, p->imgs[i], p->backingmem.devMem, offset)); 
+
+                VkImageViewCreateInfo viewInfo = (VkImageViewCreateInfo) {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                    .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+                    .image = p->imgs[i],
+                    .format = r->depthFormat,
+                    .components = {
+                        .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    },
+                    .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                    }
+                };
+
+                REQUIRE_ZERO(vkCreateImageView(r->l, &viewInfo, NULL, &p->views[i]));
             } break;
             case SE_SwapImg:
             {
@@ -682,23 +748,77 @@ void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
         }
     }
 
+    
+
 
 
     //One framebuffer per pass, except final pass
+    p->numframebuffers = r->s.numImgs + p->numSubpasses;//idk not necessary
+    p->framebuffers = SE_HeapAlloc(sizeof(VkFramebuffer) * (p->numSubpasses - 1));
 
-    p->numframebuffers = r->s.numImgs + p->numSubpasses;
-    p->framebuffers = SE_HeapAlloc(sizeof(VkFramebuffer) * r->s.numImgs);
+    SE_render_pipeline_info* info = &p->pipelineInfo;
+    
+    u8* attachment_buf = SE_HeapAlloc(sizeof(u8) * p->num_attach);
+    VkImageView* view_buf = SE_HeapAlloc(sizeof(VkImageView) * p->num_attach);
+    SE_memset(attachment_buf, 0, sizeof(u8) * p->num_attach);
+    u32 view_size = 0;
+    u32 rp = 0;
 
+    for (u32 i = 0; i < p->numSubpasses; i++) {
+
+        if (info->passes[i].num == 0) {
+            //early exit for final framebuffer special handling
+            if (rp == p->numPasses - 1) break;
+
+            //build framebuffer for pass
+            SE_Log("RenderPass: %d, Attachments\n", rp); 
+            for (u32 j = 0; j < p->num_attach; j++) {
+                if (attachment_buf[j]) {
+                    SE_Log("\tAttachmend idx: %d\n", j);
+                    attachment_buf[j] = 0;
+                    view_buf[view_size++] = p->views[j];
+                }
+            }
+
+            VkFramebufferCreateInfo frameInfo = {
+                .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                .pAttachments = view_buf,
+                .attachmentCount = view_size,
+                .renderPass = p->rpasses[rp].rp,
+                .height = r->s.size.height,
+                .width = r->s.size.width,
+                .layers = 1,
+            };
+
+            REQUIRE_ZERO(vkCreateFramebuffer(r->l, &frameInfo, NULL, &p->framebuffers[i]));
+
+            view_size = 0;
+            rp++;
+        }
+        
+        //attachment_buf[at_size++] = p->views[info->attach_refs[info->passes[i].start].attach_idx];
+        for (u32 j = 0; j < info->passes[i].num; j++) {
+            u32 index = info->attach_refs[info->passes[i].start + j].attach_idx;
+            attachment_buf[index] = 1;
+        }
+    }
+
+    //One Framebuffer per swapchain image
+    //Maybe use a special second array for the swapchain framebuffers?
+    //It might make the rest of the code a little nicer
     for (u32 i = 0; i < r->s.numImgs; i++) {
-        VkImageView views[] = {
-            r->s.views[i],
-        };
+
+        for (u32 j = 0; j < p->num_attach; j++) {
+            if (attachment_buf[j]) {
+                view_buf[view_size++] = p->views[j];
+            }
+        }
 
         VkFramebufferCreateInfo frameInfo = {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .pAttachments = views,
-            .attachmentCount = 1,
-            .renderPass = p->rpasses[0].rp,
+            .pAttachments = view_buf,
+            .attachmentCount = view_size,
+            .renderPass = p->rpasses[rp + 1].rp,
             .height = r->s.size.height,
             .width = r->s.size.width,
             .layers = 1,
@@ -706,6 +826,11 @@ void SE_CreateFrameBuffers(const SE_render_context* r, SE_render_pipeline* p) {
 
         REQUIRE_ZERO(vkCreateFramebuffer(r->l, &frameInfo, NULL, &p->framebuffers[i]));
     }
+
+    SE_HeapFree(view_buf);
+    SE_HeapFree(attachment_buf);
+
+
 }
 
 //--------------------------------------------------------------------------------
