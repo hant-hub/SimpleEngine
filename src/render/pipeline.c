@@ -315,6 +315,9 @@ SE_EndPipelineCreationFunc(SE_EndPipelineCreation) {
      * */
     
     VkAttachmentDescription* descrip = a.alloc(0, sizeof(VkAttachmentDescription) * (num_input + num_colors + num_depth + num_resolve), NULL, a.ctx);
+    VkAttachmentDescription* rdescrip = a.alloc(0, sizeof(VkAttachmentDescription) * info->atsize, NULL, a.ctx);
+    u8* idescrip = a.alloc(0, sizeof(u8) * info->atsize, NULL, a.ctx);
+    u8* descrip_flags = a.alloc(0, sizeof(u8) * (num_input + num_colors + num_depth + num_resolve), NULL, a.ctx);
     u32 curr_descrip = 0;
 
     VkAttachmentReference* input = a.alloc(0, sizeof(VkAttachmentReference) * num_input, NULL, a.ctx);
@@ -339,6 +342,49 @@ SE_EndPipelineCreationFunc(SE_EndPipelineCreation) {
 
     u32 currRpass = 0;
 
+    for (u32 i = 0; i < info->atsize; i++) {
+        switch(info->attachments[i]) {
+            case SE_SwapImg:
+            case SE_ColorImg:
+                {
+                    descrip[i] = (VkAttachmentDescription) {
+                        .format = r->s.format.format,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    };
+
+                    if (info->attachments[i] == SE_SwapImg) {
+                        descrip[i].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+                    }
+                } break;
+            case SE_DepthImg:
+                {
+                    SE_Log("Depth attachment at: %d\n", i);
+                    descrip[i] = (VkAttachmentDescription) {
+                        .format = VK_FORMAT_D32_SFLOAT,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                    };
+
+                } break;
+            default:
+                {
+                    SE_Log("Invalid Attachment Usage\n");
+                    assert(0);
+                }
+        }
+        descrip_flags[i] = 0;
+    }
+
+
     //Each step needs to build the description and the
     //reference, then finalize the subpass
     SE_Log("Psize: %d\n", info->psize);
@@ -346,6 +392,23 @@ SE_EndPipelineCreationFunc(SE_EndPipelineCreation) {
         SE_Log("Pass: %d\n", i);
         if (info->passes[i].num == 0) {
             //build renderpasses
+
+            for (u32 j = 0; j < info->atsize; j++) {
+                if (descrip_flags[j]) {
+                    SE_Log("hit: %d %d\n", curr_descrip, descrip[j].samples);
+                    idescrip[j] = curr_descrip;
+                    rdescrip[curr_descrip++] = descrip[j];
+                }
+                descrip_flags[j] = 0;
+            }
+
+            for (u32 j = 0; j < num_colors; j++) {
+                colors[j].attachment = idescrip[colors[j].attachment];
+            }
+            for (u32 j = 0; j < num_depth; j++) {
+                depth[j].attachment = idescrip[colors[j].attachment];
+            }
+
 
             SE_Log("Renderpass Attachment Count: %d\n", curr_descrip);
 
@@ -356,7 +419,7 @@ SE_EndPipelineCreationFunc(SE_EndPipelineCreation) {
                     .pSubpasses = subDes,
                     .pDependencies = subDep,
                     .attachmentCount = curr_descrip,
-                    .pAttachments = descrip,
+                    .pAttachments = rdescrip,
             };
 
             curr_input = 0;
@@ -386,18 +449,18 @@ SE_EndPipelineCreationFunc(SE_EndPipelineCreation) {
             switch(info->attach_refs[j + info->passes[i].start].usage) {
                 case SE_attach_color:
                     {
-                        descrip[curr_descrip] = (VkAttachmentDescription) {
-                            .format = r->s.format.format,
-                            .samples = VK_SAMPLE_COUNT_1_BIT,
-                            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                        };
+                        //descrip[curr_descrip] = (VkAttachmentDescription) {
+                        //    .format = r->s.format.format,
+                        //    .samples = VK_SAMPLE_COUNT_1_BIT,
+                        //    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        //    .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                        //    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        //    .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                        //};
 
 
                         colors[curr_colors++] = (VkAttachmentReference) {
-                            .attachment = curr_descrip,
+                            .attachment = info->attach_refs[j + info->passes[i].start].attach_idx,
                             .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                         };
 
@@ -405,33 +468,32 @@ SE_EndPipelineCreationFunc(SE_EndPipelineCreation) {
                         subDep[i].dstStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
                         subDep[i].dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-                        if (info->attach_refs[j + info->passes[i].start].attach_idx == 0) {
-                            descrip[curr_descrip].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-                        }
+                        descrip_flags[curr_descrip] = 1;
                     } break;
                 case SE_attach_depth:
                     {
                         SE_Log("Depth attachment at: %d\n", curr_descrip);
-                        descrip[curr_descrip] = (VkAttachmentDescription) {
-                            .format = VK_FORMAT_D32_SFLOAT, //TODO(ELI): revisit later
-                            .samples = VK_SAMPLE_COUNT_1_BIT,
-                            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                        };
+                        //descrip[curr_descrip] = (VkAttachmentDescription) {
+                        //    .format = VK_FORMAT_D32_SFLOAT, //TODO(ELI): revisit later
+                        //    .samples = VK_SAMPLE_COUNT_1_BIT,
+                        //    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        //    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        //    .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        //    .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        //    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        //    .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                        //};
 
 
                         depth[curr_depth++] = (VkAttachmentReference) {
-                            .attachment = curr_descrip,
+                            .attachment = info->attach_refs[j + info->passes[i].start].attach_idx,
                             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                         };
 
                         subDep[i].srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
                         subDep[i].dstStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
                         subDep[i].dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                        descrip_flags[curr_descrip] = 1;
                     } break;
                 case SE_attach_input:
                     {
@@ -445,7 +507,6 @@ SE_EndPipelineCreationFunc(SE_EndPipelineCreation) {
                     }
 
             }
-            curr_descrip++;
         }
 
         SE_Log("Total Descriptions: %d\n", curr_descrip);
@@ -754,7 +815,7 @@ SE_CreateFrameBuffersFunc(SE_CreateFrameBuffers) {
 
     //One framebuffer per pass, except final pass
     p->numframebuffers = r->s.numImgs + p->numSubpasses;//idk not necessary
-    p->framebuffers = SE_HeapAlloc(sizeof(VkFramebuffer) * (p->numSubpasses - 1));
+    p->framebuffers = SE_HeapAlloc(sizeof(VkFramebuffer) * (p->numframebuffers));
 
     SE_render_pipeline_info* info = &p->pipelineInfo;
     
@@ -806,9 +867,11 @@ SE_CreateFrameBuffersFunc(SE_CreateFrameBuffers) {
     //One Framebuffer per swapchain image
     //Maybe use a special second array for the swapchain framebuffers?
     //It might make the rest of the code a little nicer
+    SE_Log("numimgs: %d\n", r->s.numImgs);
     for (u32 i = 0; i < r->s.numImgs; i++) {
 
-        for (u32 j = 0; j < p->num_attach; j++) {
+        view_buf[view_size++] = r->s.views[i];
+        for (u32 j = 1; j < p->num_attach; j++) {
             if (attachment_buf[j]) {
                 view_buf[view_size++] = p->views[j];
             }
@@ -818,11 +881,12 @@ SE_CreateFrameBuffersFunc(SE_CreateFrameBuffers) {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .pAttachments = view_buf,
             .attachmentCount = view_size,
-            .renderPass = p->rpasses[rp + 1].rp,
+            .renderPass = p->rpasses[rp].rp,
             .height = r->s.size.height,
             .width = r->s.size.width,
             .layers = 1,
         };
+        view_size = 0;
 
         REQUIRE_ZERO(vkCreateFramebuffer(r->l, &frameInfo, NULL, &p->framebuffers[i]));
     }
@@ -900,7 +964,17 @@ SE_DrawFrameFunc(SE_DrawFrame) {
     vkCmdSetViewport(r->cmd, 0, 1, &view);
     vkCmdSetScissor(r->cmd, 0, 1, &scissor);
 
-    for (u32 i = 0; i < p->numSubpasses; i++) {
+    //for (u32 i = 0; i < p->numSubpasses; i++) {
+    {
+        vkCmdBindPipeline(r->cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelines[0]);
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(r->cmd, 0, 1, (VkBuffer*)&vert->mem->resource, offsets);
+        vkCmdDraw(r->cmd, 3, 1, 0, 0);
+    }
+    //}
+        vkCmdNextSubpass(r->cmd, VK_SUBPASS_CONTENTS_INLINE);
+
+    {
         vkCmdBindPipeline(r->cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelines[0]);
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(r->cmd, 0, 1, (VkBuffer*)&vert->mem->resource, offsets);

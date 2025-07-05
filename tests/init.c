@@ -113,6 +113,7 @@ SE_INIT_FUNC(Init) {
 
    //s->OpaquePass(&p, 0, 0, 1, sidx);
    s->OpaqueNoDepthPass(&p, 0, 0, sidx);
+   s->OpaqueNoDepthPass(&p, 0, 0, sidx);
 
    printf("RenderPass Info:\n");
    for (u32 i = 0; i < p.pipelineInfo.psize; i++) {
