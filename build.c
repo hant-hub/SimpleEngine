@@ -30,9 +30,23 @@ int main(int argc, char *argv[]) {
             // cutils
             sb_CMD() {
                 sb_cmd_main("curl");
-                sb_cmd_arg(
-                    "https://raw.githubusercontent.com/hant-hub/Cutils/refs/"
-                    "heads/main/include/cutils.h");
+                sb_cmd_arg("https://raw.githubusercontent.com/hant-hub/Cutils/refs/heads/main/include/cutils.h");
+                sb_cmd_opt("O");
+                sb_cmd_opt("-output-dir");
+                sb_cmd_arg("lib/include/");
+            }
+            //simple ds for hashmaps and dynarrays
+            sb_CMD() {
+                sb_cmd_main("curl");
+                sb_cmd_arg("https://raw.githubusercontent.com/hant-hub/SimpleDS/refs/heads/main/include/ds.h");
+                sb_cmd_opt("O");
+                sb_cmd_opt("-output-dir");
+                sb_cmd_arg("lib/include/");
+            }
+            //StringBase for string interning
+            sb_CMD() {
+                sb_cmd_main("curl");
+                sb_cmd_arg("https://raw.githubusercontent.com/hant-hub/StringBase/refs/heads/main/include/strbase.h");
                 sb_cmd_opt("O");
                 sb_cmd_opt("-output-dir");
                 sb_cmd_arg("lib/include/");
@@ -96,7 +110,6 @@ int main(int argc, char *argv[]) {
             sb_EXEC() {
                 sb_add_file(source);
 
-
                 sb_add_include_path("include/");
                 sb_add_include_path("lib/include");
 
@@ -106,7 +119,7 @@ int main(int argc, char *argv[]) {
 
                 switch (p) {
                     case X11: {
-                        sb_add_flag("DX11"); 
+                        sb_add_flag("DX11");
                         sb_link_library("X11");
                     } break;
                     case WAYLAND: sb_add_flag("DWAYLAND"); break;
@@ -128,16 +141,42 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        sb_FOREACHFILE("src/core/", source) {
+            sb_EXEC() {
+                sb_add_file(source);
+
+                sb_add_include_path("include/");
+                sb_add_include_path("lib/include");
+
+                sb_add_flag("g");
+
+                char buf[PATH_MAX + 1] = {0};
+                char final[PATH_MAX + 1] = {0};
+                strncpy(buf, source, PATH_MAX);
+
+                char *name = sb_stripext(sb_basename(buf));
+                snprintf(final, PATH_MAX, "objs/%s.o", name);
+
+                sb_add_flag("c");
+                sb_set_out(final);
+
+                sb_export_command();
+            }
+            sb_fence();
+        }
+
+
+        // Static lib
         sb_FOREACHFILE("build/objs/", file) {
             sb_CMD() {
                 sb_cmd_main("ar");
-                sb_cmd_arg("rcs");
+                sb_cmd_opt("rcs");
                 sb_cmd_arg("build/libse.a");
                 sb_cmd_arg(file);
             }
+            // this is here to prevent ar from smashing the archive
+            sb_fence();
         }
-
-        sb_fence();
 
         // tests
         sb_FOREACHFILE("test/tests/", test) {
@@ -159,7 +198,7 @@ int main(int argc, char *argv[]) {
 
                 switch (p) {
                     case X11: {
-                        sb_add_flag("DX11"); 
+                        sb_add_flag("DX11");
                         sb_link_library("X11");
                     } break;
                     case WAYLAND: sb_add_flag("DWAYLAND"); break;

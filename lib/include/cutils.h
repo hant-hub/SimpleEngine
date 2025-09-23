@@ -566,14 +566,12 @@ u64 filesave(const SString filename, SString handle) {
 
 void filedelete(SString filename) {
     char buf[PATH_MAX + 1] = {0};
-    ;
     sformat((SString){.len = PATH_MAX, .data = (i8 *)buf}, "%s", filename);
     remove(buf);
 }
 
 void setdir(SString dir) {
     char buf[PATH_MAX + 1] = {0};
-    ;
     sformat((SString){.len = PATH_MAX, .data = (i8 *)buf}, "%s", dir);
     chdir(buf);
 }
@@ -999,7 +997,7 @@ u32 FNVHash32(u8 *data, u32 size) {
         hash ^= data[i];
         hash *= 16777619UL;
     }
-    return 0;
+    return hash;
 }
 
 #endif

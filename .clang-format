@@ -10,3 +10,5 @@ AllowShortBlocksOnASingleLine: true
 
 IndentCaseLabels: true
 AllowShortCaseLabelsOnASingleLine: true
+
+ColumnLimit: 120
