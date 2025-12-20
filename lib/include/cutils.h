@@ -6,6 +6,14 @@
 #define PAGE_SIZE (1 << 12)
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
+#define KB(x) (x << 10)
+#define MB(x) (KB(x) << 10)
+#define GB(x) (MB(x) << 10)
+
+#define MIN(x, y) (x < y ? x : y)
+#define MAX(x, y) (x > y ? x : y)
+#define CLAMP(min, max, t) (MAX(MIN(max, t), min))
+
 /*
     Helpful typedefs
 */
@@ -19,6 +27,9 @@ typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
+
+#define FALSE 0
+#define TRUE 1
 
 typedef uint8_t bool8;
 typedef uint16_t bool16;
@@ -147,22 +158,36 @@ void setdirExe();
 
 /*
 Format Table:
+    
+    %u -> int (unsigned)
 
-    %d -> int
+    %d -> int (decimal)
+
+    %x -> int (unsigned hex)
+
+    %l -> long
 
     %n -> null terminated string
 
     %s -> SString (sized string)
 
     %f -> f64 (floating point)
+
+    %c -> char (print int as char)
 
 */
 u32 sformat(SString dst, const char *format, ...);
 
 /*
 Format Table:
+    
+    %u -> int (unsigned)
 
-    %d -> int
+    %d -> int (decimal)
+
+    %x -> int (unsigned hex)
+
+    %l -> long (decimal by default)
 
     %n -> null terminated string
 
@@ -170,6 +195,7 @@ Format Table:
 
     %f -> f64 (floating point)
 
+    %c -> char (print int as char)
 */
 // Not threadsafe
 u32 fformat(file *dst, const char *format, ...);
@@ -693,6 +719,13 @@ static void format_float(formatInfo info, f64 num) {
         num *= -1;
     }
 
+    if (num == 0) {
+        info.f('0', info.ctx);
+        info.f('.', info.ctx);
+        info.f('0', info.ctx);
+        return;
+    }
+
     f64 ten = 1.0;
     i32 exp = 1;
     v2d mid, inhi, inlo;
@@ -802,6 +835,63 @@ static ptrdiff_t format_arg(formatInfo info, va_list args, const char *format) {
 
         out++;
     } break;
+    case 'u': {
+        u64 num = va_arg(args, u32);
+
+        if (num == 0) {
+            info.f('0', info.ctx);
+            out++;
+            break;
+        }
+
+        // calc number of digits
+        u32 digits = 0;
+        for (u32 i = 0; i < ARRAY_SIZE(power10plus); i++) {
+            if ((num / power10plus[i]) == 0UL)
+                break;
+            digits++;
+        }
+
+        // print digits
+        for (i32 i = digits - 1; i >= 0; i--) {
+            u32 digit = num / power10plus[i];
+            num -= digit * power10plus[i];
+            info.f(digit + '0', info.ctx);
+        }
+
+        out++;
+    } break;
+    case 'l': {
+        i64 s = va_arg(args, i64);
+        if (s < 0) {
+            info.f('-', info.ctx);
+            s *= -1;
+        }
+        u64 num = s;
+
+        if (num == 0) {
+            info.f('0', info.ctx);
+            out++;
+            break;
+        }
+
+        // calc number of digits
+        u32 digits = 0;
+        for (u32 i = 0; i < ARRAY_SIZE(power10plus); i++) {
+            if ((num / power10plus[i]) == 0UL)
+                break;
+            digits++;
+        }
+
+        // print digits
+        for (i32 i = digits - 1; i >= 0; i--) {
+            u32 digit = num / power10plus[i];
+            num -= digit * power10plus[i];
+            info.f(digit + '0', info.ctx);
+        }
+
+        out++;
+    } break;
     case 'f': {
         f64 s = va_arg(args, f64);
         format_float(info, s);
@@ -812,12 +902,51 @@ static ptrdiff_t format_arg(formatInfo info, va_list args, const char *format) {
         for (u32 i = 0; i < s.len; i++) { info.f(s.data[i], info.ctx); }
         out++;
     } break;
+    case 'c': {
+        int c = va_arg(args, int);
+        info.f(c, info.ctx);
+        out++;
+    } break;
     case 'n': {
         const char *s = va_arg(args, const char *);
         while (s[0]) {
             info.f(s[0], info.ctx);
             s++;
         }
+        out++;
+    } break;
+    case 'x': {
+        u64 num = va_arg(args, u64);
+
+        if (num == 0) {
+            info.f('0', info.ctx);
+            out++;
+            break;
+        }
+
+        // calc number of digits
+        u32 digits = 0;
+        u64 hexpower = 1;
+        for (u32 i = 0; i < ARRAY_SIZE(power10plus); i++) {
+            if ((num / hexpower) == 0UL)
+                break;
+            digits++;
+            hexpower <<= 4; // multiply by 16
+        }
+        hexpower >>= 4;
+
+        // print digits
+        for (i32 i = digits - 1; i >= 0; i--) {
+            u32 digit = num / hexpower;
+            num -= digit * hexpower;
+            if (digit < 10)
+                info.f(digit + '0', info.ctx);
+            else
+                info.f(digit + 'a' - 10, info.ctx);
+
+            hexpower >>= 4; // divide by 16
+        }
+
         out++;
     } break;
     default: {

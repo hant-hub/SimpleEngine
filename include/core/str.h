@@ -4,5 +4,4 @@
 
 #include <strbase.h>
 
-
 #endif

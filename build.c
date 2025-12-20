@@ -1,12 +1,54 @@
 #include <stdio.h>
+#include <string.h>
 #define SB_IMPL
 #include "sb.h"
 
+#define ARGS \
+    X(platform, string)
+
+#define OPTS \
+    X(i, bool) \
+    X(f, bool) \
+    X(v, bool) \
+    X(build, string) \
+    X(t, string)
+
+#include "sa.h"
+
 typedef enum Platform { X11, WAYLAND, WIN32, NONE } Platform;
+typedef enum Build { DEBUG, RELEASE } Build;
 
 Platform p = NONE;
+Build b = DEBUG;
 
 int main(int argc, char *argv[]) {
+
+    SA args = Parse(argc, argv);
+    if (args.err) {
+        sb_printf("Failed to parse!\n");
+        return -1;
+    }
+    SAvals parsed = args.vals;
+
+    if (sb_strcmp("x11", parsed.platform) == 0) {
+        p = X11;
+    } else if (sb_strcmp("wayland", parsed.platform) == 0) {
+        p = WAYLAND;
+    } else if (sb_strcmp("win32", parsed.platform) == 0) {
+        p = WIN32;
+    } else {
+        printf("No Backend Specified\n");
+        return -1;
+    }
+
+    if (parsed.build.set) {
+        if (sb_strcmp("debug", parsed.build.val) == 0) {
+            b = DEBUG;
+        } else if (sb_strcmp("release", parsed.build.val) == 0) {
+            b = RELEASE;
+        }
+    } else b = DEBUG;
+
     sb_BUILD(argc, argv) {
         sb_chdir_exe();
         sb_mkdir("build/");
@@ -14,18 +56,8 @@ int main(int argc, char *argv[]) {
         sb_mkdir("build/objs");
         sb_target_dir("build/");
 
-        if (sb_check_arg("x11")) {
-            p = X11;
-        } else if (sb_check_arg("wayland")) {
-            p = WAYLAND;
-        } else if (sb_check_arg("win32")) {
-            p = WIN32;
-        } else {
-            printf("No Backend Specified\n");
-            exit(1);
-        }
 
-        if (sb_check_arg("init")) {
+        if (parsed.i.set) {
             // downloads latest version of
             // cutils
             sb_CMD() {
@@ -54,7 +86,7 @@ int main(int argc, char *argv[]) {
         }
 
         // formatting
-        if (sb_check_arg("format")) {
+        if (parsed.f.set) {
             sb_FOREACHFILE("./", test) {
                 if (sb_cmpext(test, ".c") && sb_cmpext(test, ".h"))
                     continue;
@@ -106,6 +138,13 @@ int main(int argc, char *argv[]) {
             case NONE: break;
         }
 
+        char *buildflag = NULL;
+        switch (b) {
+            case DEBUG: buildflag = "DDEBUG"; break;
+            case RELEASE: buildflag = "DRELEASE"; break;
+        }
+
+
         sb_FOREACHFILE(windowdir, source) {
             sb_EXEC() {
                 sb_add_file(source);
@@ -116,6 +155,8 @@ int main(int argc, char *argv[]) {
                 sb_link_library("vulkan");
 
                 sb_add_flag("g");
+                sb_add_flag(buildflag);
+                sb_add_flag("fsanitize=address");
 
                 switch (p) {
                     case X11: {
@@ -132,7 +173,7 @@ int main(int argc, char *argv[]) {
                 strncpy(buf, source, PATH_MAX);
 
                 char *name = sb_stripext(sb_basename(buf));
-                snprintf(final, PATH_MAX, "objs/%s.o", name);
+                snprintf(final, PATH_MAX, "objs/plat_%s.o", name);
 
                 sb_add_flag("c");
                 sb_set_out(final);
@@ -149,13 +190,41 @@ int main(int argc, char *argv[]) {
                 sb_add_include_path("lib/include");
 
                 sb_add_flag("g");
+                sb_add_flag(buildflag);
+                sb_add_flag("fsanitize=address");
 
                 char buf[PATH_MAX + 1] = {0};
                 char final[PATH_MAX + 1] = {0};
                 strncpy(buf, source, PATH_MAX);
 
                 char *name = sb_stripext(sb_basename(buf));
-                snprintf(final, PATH_MAX, "objs/%s.o", name);
+                snprintf(final, PATH_MAX, "objs/core_%s.o", name);
+
+                sb_add_flag("c");
+                sb_set_out(final);
+
+                sb_export_command();
+            }
+            sb_fence();
+        }
+
+        sb_FOREACHFILE("src/graphics/", source) {
+            sb_EXEC() {
+                sb_add_file(source);
+
+                sb_add_include_path("include/");
+                sb_add_include_path("lib/include");
+
+                sb_add_flag("g");
+                sb_add_flag(buildflag);
+                sb_add_flag("fsanitize=address");
+
+                char buf[PATH_MAX + 1] = {0};
+                char final[PATH_MAX + 1] = {0};
+                strncpy(buf, source, PATH_MAX);
+
+                char *name = sb_stripext(sb_basename(buf));
+                snprintf(final, PATH_MAX, "objs/graphics_%s.o", name);
 
                 sb_add_flag("c");
                 sb_set_out(final);
@@ -193,6 +262,7 @@ int main(int argc, char *argv[]) {
                 sb_link_library("vulkan");
 
                 sb_add_flag("g");
+                sb_add_flag(buildflag);
                 sb_add_flag("fsanitize=address");
                 sb_link_library("m");
 
@@ -219,6 +289,26 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        //compile shaders to spv
+        sb_mkdir("build/shaders");
+        sb_FOREACHFILE("shaders/", shader) {
+            sb_CMD() {
+                sb_cmd_main("glslc");
+                sb_cmd_arg(shader);
+                sb_cmd_opt("o");
+
+                char buf[PATH_MAX + 1] = {0};
+                char final[PATH_MAX + 1] = {0};
+                strncpy(buf, shader, PATH_MAX);
+                snprintf(final, PATH_MAX, "build/shaders/%s.spv", sb_basename(shader));
+
+                sb_cmd_arg(final);
+
+                printf("shader: %s\n", final);
+            }
+        }
+
+
         sb_EXEC() {
             sb_add_file("test/runner.c");
 
@@ -233,6 +323,7 @@ int main(int argc, char *argv[]) {
             }
 
             sb_add_flag("g");
+            sb_add_flag(buildflag);
             sb_link_library("m");
 
             sb_set_out("runner");
@@ -240,8 +331,9 @@ int main(int argc, char *argv[]) {
             sb_export_command();
         }
     }
+    if (!parsed.t.set) return 0;
 
-    if (!sb_check_arg("no-test")) {
+    if (sb_strcmp("all", parsed.t.val) == 0) {
         sb_build_start(argc, argv);
         sb_target_dir("build/");
         sb_CMD() { sb_cmd_main("clear"); }
@@ -251,6 +343,17 @@ int main(int argc, char *argv[]) {
             if (sb_check_arg("v")) {
                 sb_cmd_arg("v");
             }
+        }
+        sb_build_end();
+    } else {
+        sb_build_start(argc, argv);
+        sb_target_dir("build/");
+        sb_CMD() { sb_cmd_main("clear"); }
+        sb_fence();
+        char buf[PATH_MAX] = {0};
+        sb_snprintf(buf, PATH_MAX, "build/tests/%s", parsed.t.val); 
+        sb_CMD() {
+            sb_cmd_main(buf);
         }
         sb_build_end();
     }

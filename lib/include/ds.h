@@ -573,4 +573,43 @@
         Free(map->a, map->vals, map->cap * sizeof(map->vals[0]));              \
     }
 
+/*
+    Memory Pool implementation
+
+    Used for allocating pools
+*/
+
+#define PoolDecl(name, item)                                                   \
+    typedef struct name {                                                      \
+        Allocator a;                                                           \
+        item *slots;                                                           \
+        u32 *freelist;                                                         \
+        u32 cap;                                                               \
+        u32 freesize;                                                          \
+    } name;                                                                    \
+    u32 name##Alloc(name *p);                                                  \
+    void name##Free(name *p, u32 idx);                                         \
+    void name##Destroy(name *p);
+
+#define PoolImpl(name, item)                                                   \
+    u32 name##Alloc(name *p) {                                                 \
+        if (p->freesize == 0) {                                                \
+            u32 oldcap = p->cap;                                               \
+            p->cap = p->cap ? p->cap * 2 : 8;                                  \
+            p->slots = Realloc(p->a, p->slots, oldcap * sizeof(item),          \
+                               p->cap * sizeof(item));                         \
+            p->freelist = Realloc(p->a, p->freelist, oldcap * sizeof(u32),     \
+                                  p->cap * sizeof(u32));                       \
+            for (u32 i = oldcap; i < p->cap; i++) {                            \
+                p->slots[i] = (item){};                                        \
+                p->freelist[p->freesize++] = i;                                \
+            }                                                                  \
+        }                                                                      \
+        return p->freelist[--p->freesize];                                     \
+    }                                                                          \
+    void name##Free(name *p, u32 idx) { p->freelist[p->freesize++] = idx; }    \
+    void name##Destroy(name *p) {                                              \
+        Free(p->a, p->slots, p->cap * sizeof(item));                           \
+        Free(p->a, p->freelist, p->cap * sizeof(u32));                         \
+    }
 #endif

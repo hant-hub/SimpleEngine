@@ -1,11 +1,14 @@
 #ifndef SE_H
 #define SE_H
 
-#include "core/util.h"
 #include "cutils.h"
 #include <strbase.h>
+#include "graphics/graphics.h"
+
+#include <vulkan/vulkan.h>
 
 extern StrBase stringbase;
+typedef struct SEVulkan SEVulkan;
 
 //keys
 typedef enum KeyCodes {
@@ -43,6 +46,7 @@ typedef enum KeyCodes {
     KEY_ALT,
     KEY_BACKSPACE,
     KEY_ENTER,
+    KEY_SUPER,
 
     NUM_KEYS
 } KeyCodes;
@@ -55,6 +59,7 @@ typedef enum KeyState {
 //should always be accessed via pointer
 typedef struct SEwindow {
     Allocator mem;
+    bool8 resize;
     u32 width, height;
     const char* name;
     KeyState keystate[NUM_KEYS];
@@ -64,6 +69,7 @@ void InitSE();
 SEwindow* CreateWindow(Allocator a, const char* windowname);
 void Poll(SEwindow* handle);
 void DestroyWindow(SEwindow* win);
+SEVulkan* GetGraphics(SEwindow* win);
 
 //#if defined(X11)
 //#include "platform/x11/x11.h"
