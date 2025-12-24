@@ -1,4 +1,5 @@
 #include "cutils.h"
+#include "ds.h"
 #include "se.h"
 #include "vulkan/vulkan_core.h"
 #include <assert.h>
@@ -92,14 +93,15 @@ void CreateSwapChain(SEwindow* win, SEVulkan* g, Allocator a) {
         }
 
         //pick present mode
-        g->swapchain.mode = VK_PRESENT_MODE_FIFO_KHR;
         for (u32 i = 0; i < details->nummodes; i++) {
             if (details->modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
                 g->swapchain.mode = VK_PRESENT_MODE_MAILBOX_KHR;
             }
         }
+        g->swapchain.mode = VK_PRESENT_MODE_FIFO_KHR;
         
         debuglog("Window Dimensions: (%d, %d)", win->width, win->height);
+        debuglog("Window Mode: %d", g->swapchain.mode);
 
         g->swapchain.width = CLAMP(details->cap.minImageExtent.width, details->cap.maxImageExtent.width, win->width); 
         g->swapchain.height = CLAMP(details->cap.minImageExtent.height, details->cap.maxImageExtent.height, win->height); 
@@ -259,6 +261,8 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
     g->resources.shaders.a = a;
     g->resources.layouts.a = a;
     g->resources.pipelines.a = a;
+    g->imgAvalible.a = a;
+    g->renderfinished.a = a;
 
     VkDebugUtilsMessengerCreateInfoEXT messengerInfo = {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -369,7 +373,7 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
     VkCommandPoolCreateInfo pool = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .queueFamilyIndex = g->queues.gfam,
-        .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
     };
     vkCreateCommandPool(g->dev, &pool, NULL, &g->pool);
 
@@ -383,17 +387,30 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         .flags = VK_FENCE_CREATE_SIGNALED_BIT
     };
 
-    vkCreateSemaphore(g->dev, &semInfo, NULL, &g->imgAvalible);
-    vkCreateSemaphore(g->dev, &semInfo, NULL, &g->renderfinished);
+    for (u32 i = 0; i < g->swapchain.imgcount; i++) {
+        VkSemaphore imgAvalible;
+        VkSemaphore renderFinished;
+
+        vkCreateSemaphore(g->dev, &semInfo, NULL, &imgAvalible);
+        vkCreateSemaphore(g->dev, &semInfo, NULL, &renderFinished);
+
+        dynPush(g->imgAvalible, imgAvalible);
+        dynPush(g->renderfinished, renderFinished);
+    }
     vkCreateFence(g->dev, &fenceInfo, NULL, &g->inFlight);
 }
 
 
 void DestroyVulkan(SEVulkan g, Allocator a) {
+    vkDeviceWaitIdle(g.dev);
 
-    vkDestroySemaphore(g.dev, g.imgAvalible, NULL);
-    vkDestroySemaphore(g.dev, g.renderfinished, NULL);
+    for (u32 i = 0; i < g.swapchain.imgcount; i++) {
+        vkDestroySemaphore(g.dev, g.imgAvalible.data[i], NULL);
+        vkDestroySemaphore(g.dev, g.renderfinished.data[i], NULL);
+    }
     vkDestroyFence(g.dev, g.inFlight, NULL);
+    dynFree(g.imgAvalible);
+    dynFree(g.renderfinished);
     
     for (u32 i = 0; i < g.resources.shaders.cap; i++) {
         vkDestroyShaderModule(g.dev, g.resources.shaders.slots[i], NULL);

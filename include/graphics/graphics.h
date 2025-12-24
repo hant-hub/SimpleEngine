@@ -3,23 +3,37 @@
 #include "cutils.h"
 
 typedef struct SEwindow SEwindow;
-typedef struct SERenderPass SERenderPass;
 
-typedef u32 SEShader;
-typedef u32 SELayout;
-typedef u32 SEPipeline;
+//Rendergraph
+typedef struct SERenderPipelineInfo SERenderPipelineInfo;
+typedef struct SERenderPipeline SERenderPipeline;
+typedef struct SECmdBuf SECmdBuf;
 
-SEShader AddShader(SEwindow* v, SString source);
-u32 SEAddLayout(SEwindow* win);
-u32 SEAddPipeline(SEwindow* win, SERenderPass* r, u32 layout, u32 vert, u32 frag);
+//rendercallback
+typedef void (*SEDrawFunc)(SECmdBuf* p, void* pass);
 
-SERenderPass* SECreateRenderPass(SEwindow* win);
-void SEDestroyRenderPass(SEwindow* win, SERenderPass* r);
+#define SE_SCREEN 0
 
-void BeginRender(SEwindow* win);
-void EndRender(SEwindow* win, u32 idx);
+void DrawTriangle(SECmdBuf* buf, void* pass);
 
-u32 BeginRenderPass(SEwindow* win, SERenderPass* r);
-void EndRenderPass(SEwindow* win);
+SERenderPipelineInfo* SECreatePipeline(SEwindow* win);
+void SEBeginRenderPass(SERenderPipelineInfo* r);
+void SEEndRenderPass(SERenderPipelineInfo* r);
 
-void DrawTriangle(SEwindow* win);
+u32 SEAddResource(SERenderPipelineInfo* r, bool8 clear);
+u32 SEAddShader(SEwindow* win, SERenderPipelineInfo* r, SString source);
+void SEBindShaders(SERenderPipelineInfo* r, u32 vert, u32 frag, u32 layout);
+u32 SEAddLayout(SEwindow* win, SERenderPipelineInfo* r);
+
+void SEReadResource(SERenderPipelineInfo* r, u32 resourceID);
+void SEWriteResource(SERenderPipelineInfo* r, u32 resourceID);
+
+void SEAddColorTarget(SERenderPipelineInfo* r, u32 idx);
+void SEAddDrawFunc(SERenderPipelineInfo* r, SEDrawFunc f);
+
+SERenderPipeline* SECompilePipeline(SEwindow* win, SERenderPipelineInfo* r);
+
+void SEDestroyPipeline(SEwindow* win, SERenderPipeline* r);
+void SEDestroyPipelineInfo(SEwindow* win, SERenderPipelineInfo* r);
+
+void SEDrawPipeline(SEwindow* win, SERenderPipeline* r);

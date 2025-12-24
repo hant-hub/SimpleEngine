@@ -47,8 +47,9 @@
         }                                                                      \
                                                                                \
         if (array.size < newsize) {                                            \
-            memset(&array.data[array.size], 0,                                 \
-                   (newsize - array.size) * sizeof(array.data[0]));            \
+            char *d = (char *)&array.data[array.size];                         \
+            u32 len = (newsize - array.size) * sizeof(array.data[0]);          \
+            for (u32 i = 0; i < len; i++) d[i] = 0;                            \
         }                                                                      \
         array.size = newsize;                                                  \
     } while (0);

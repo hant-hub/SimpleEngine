@@ -11,7 +11,9 @@
     X(f, bool) \
     X(v, bool) \
     X(build, string) \
-    X(t, string)
+    X(t, string) \
+    X(mem, bool)
+
 
 #include "sa.h"
 
@@ -156,7 +158,8 @@ int main(int argc, char *argv[]) {
 
                 sb_add_flag("g");
                 sb_add_flag(buildflag);
-                sb_add_flag("fsanitize=address");
+                if (parsed.mem.set) 
+                    sb_add_flag("fsanitize=address");
 
                 switch (p) {
                     case X11: {
@@ -191,7 +194,8 @@ int main(int argc, char *argv[]) {
 
                 sb_add_flag("g");
                 sb_add_flag(buildflag);
-                sb_add_flag("fsanitize=address");
+                if (parsed.mem.set) 
+                    sb_add_flag("fsanitize=address");
 
                 char buf[PATH_MAX + 1] = {0};
                 char final[PATH_MAX + 1] = {0};
@@ -217,7 +221,8 @@ int main(int argc, char *argv[]) {
 
                 sb_add_flag("g");
                 sb_add_flag(buildflag);
-                sb_add_flag("fsanitize=address");
+                if (parsed.mem.set) 
+                    sb_add_flag("fsanitize=address");
 
                 char buf[PATH_MAX + 1] = {0};
                 char final[PATH_MAX + 1] = {0};
@@ -263,8 +268,10 @@ int main(int argc, char *argv[]) {
 
                 sb_add_flag("g");
                 sb_add_flag(buildflag);
-                sb_add_flag("fsanitize=address");
                 sb_link_library("m");
+
+                if (parsed.mem.set) 
+                    sb_add_flag("fsanitize=address");
 
                 switch (p) {
                     case X11: {

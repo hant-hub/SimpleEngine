@@ -160,10 +160,10 @@ void Poll(SEwindow *handle) {
             case ConfigureNotify:
             {
                 XConfigureEvent* con = (XConfigureEvent *)&e; 
-                debuglog("Configure Window:");
-                debuglog("\tpos: (%d, %d)", con->x, con->y);
-                debuglog("\tsize: (%d, %d)", con->width, con->height);
-                debuglog("\tborder: %d", con->border_width);
+                //debuglog("Configure Window:");
+                //debuglog("\tpos: (%d, %d)", con->x, con->y);
+                //debuglog("\tsize: (%d, %d)", con->width, con->height);
+                //debuglog("\tborder: %d", con->border_width);
 
                 if (handle->width != con->width) {
                     handle->width = con->width;
@@ -177,7 +177,7 @@ void Poll(SEwindow *handle) {
             } break;
             case Expose:
             {
-                debuglog("Expose Event");
+                //debuglog("Expose Event");
             } break;
 
             default: debugerr("Unsupported Event: %d", e.type); break;

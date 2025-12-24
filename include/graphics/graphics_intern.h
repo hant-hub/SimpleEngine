@@ -12,6 +12,8 @@ PoolDecl(ShaderPool, VkShaderModule);
 PoolDecl(LayoutPool, VkPipelineLayout);
 PoolDecl(PipelinePool, VkPipeline);
 
+
+
 //shouldn't be static since this should be shared across
 //platforms
 
@@ -22,6 +24,17 @@ typedef struct SwapChainInfo {
     u32 numformats;
     u32 nummodes;
 } SwapChainInfo;
+
+typedef struct Attachment {
+    VkImageView view;
+    bool8 pending;
+} Attachment;
+
+typedef struct Buffer {
+    VkBuffer buf;
+    bool8 pending;
+} Buffer;
+
 
 //vulkan
 typedef struct SEVulkan {
@@ -35,11 +48,11 @@ typedef struct SEVulkan {
     SwapChainInfo swapInfo;
     VkDevice dev; 
     VkSurfaceKHR surf;
-    VkCommandPool pool;
+    VkCommandPool pool; //TODO(ELI): Remove pool and buf
     VkCommandBuffer buf;
 
-    VkSemaphore imgAvalible;
-    VkSemaphore renderfinished;
+    dynArray(VkSemaphore) imgAvalible;
+    dynArray(VkSemaphore) renderfinished;
     VkFence inFlight;
 
     struct {
@@ -86,6 +99,93 @@ typedef struct SERenderPass {
     u32 pipeline; //one for now
 } SERenderPass;
 
+//Rendergraph data
+
+
+
+typedef struct SEAttachmentInfo {
+    VkFormat f;
+    bool8 clear;
+    bool8 persistant; //used to determine whether image layout
+                      //is undefined at start of each frame
+} SEAttachmentInfo;
+
+typedef enum ResourceUsage {
+    RESOURCE_UNINITIALIZED = 0,
+    RESOURCE_READ  = 1 << 0,
+    RESOURCE_WRITE = 1 << 1,
+} ResourceUsage;
+
+typedef enum ResourceType {
+    COLOR_ATTACHMENT = 0,
+    VERTEX_BUFFER,
+} ResourceType;
+
+typedef struct Resource {
+    ResourceType type;
+    ResourceUsage lastUsage; 
+    
+    union {
+        VkImageView view;
+    } vk;
+
+    bool8 clear;
+    bool8 swapchain;
+} Resource;
+
+//structure to store graph before object creation
+typedef struct SERenderPassInfo {
+    u32 readStart;
+    u32 numReads;
+    u32 writeStart;
+    u32 numWrites;
+    u32 vertex;
+    u32 fragment;
+    u32 layout;
+    void* func;
+} SERenderPassInfo;
+
+typedef struct SERenderPipelineInfo {
+    Allocator a;
+
+    dynArray(SERenderPassInfo) passes;
+    dynArray(VkShaderModule) shaders;
+    dynArray(VkPipelineLayout) layouts;
+    dynArray(u32) writes;
+    dynArray(u32) reads;
+    dynArray(Resource) resources;
+} SERenderPipelineInfo;
+
+typedef struct SECmdBuf {
+    VkCommandBuffer buf;
+} SECmdBuf;
+
+typedef struct SEPass {
+    VkRenderPass rpass;
+    VkPipeline pipe;
+    SEDrawFunc func;
+    u32 framebuffer;
+    bool8 targetSwap; //If we target a swapchain image
+                      //We need to use the image index to
+                      //pick the correct framebuffer
+} SEPass;
+
+typedef struct PipelineBarrier {
+    VkPipelineStageFlags srcStageMask; 
+    VkPipelineStageFlags dstStageMask;
+    VkDependencyFlags depFlags; //specify region stuff (probably ignore)
+    VkMemoryBarrier barrier;
+    VkImageMemoryBarrier imageBarrier; //do layout transitions (probably not necessary)
+} PipelineBarrier;
+
+typedef struct SERenderPipeline {
+    Allocator a;
+    VkCommandBuffer buf;
+
+    dynArray(PipelineBarrier) barriers;
+    dynArray(VkFramebuffer) buffers;
+    dynArray(SEPass) passes;
+} SERenderPipeline;
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -109,5 +209,8 @@ void LoadExtensionFuncs(VkInstance instance);
 
 void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g);
 void DestroyVulkan(SEVulkan g, Allocator a);
+
+//helpers
+VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r, VkPipelineLayout layout, VkShaderModule vert, VkShaderModule frag);
 
 #endif

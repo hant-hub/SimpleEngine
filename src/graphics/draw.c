@@ -37,10 +37,10 @@ void EndRender(SEwindow* win, u32 idx) {
         .commandBufferCount = 1,
         .pCommandBuffers = &v->buf,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &v->imgAvalible,
+        .pWaitSemaphores = &v->imgAvalible.data[0],
         .pWaitDstStageMask = (VkPipelineStageFlags[]){VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &v->renderfinished,
+        .pSignalSemaphores = &v->renderfinished.data[0],
     };
 
     vkQueueSubmit(v->queues.graphics, 1, &subInfo, v->inFlight);
@@ -49,7 +49,7 @@ void EndRender(SEwindow* win, u32 idx) {
     VkPresentInfoKHR presentInfo = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &v->renderfinished,
+        .pWaitSemaphores = &v->renderfinished.data[0],
         .swapchainCount = 1,
         .pSwapchains = &v->swapchain.swap,
         .pImageIndices = &idx,
@@ -62,7 +62,7 @@ u32 BeginRenderPass(SEwindow* win, SERenderPass* r) {
     SEVulkan* v = GetGraphics(win);
     u32 i = 0;
     
-    vkAcquireNextImageKHR(v->dev, v->swapchain.swap, UINT32_MAX, v->imgAvalible, NULL, &i);
+    vkAcquireNextImageKHR(v->dev, v->swapchain.swap, UINT32_MAX, v->imgAvalible.data[0], NULL, &i);
 
     VkClearValue clearValue = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
 
@@ -105,7 +105,3 @@ void EndRenderPass(SEwindow* win) {
     vkCmdEndRenderPass(v->buf);
 }
 
-void DrawTriangle(SEwindow* win) {
-    SEVulkan* v = GetGraphics(win);
-    vkCmdDraw(v->buf, 3, 1, 0, 0);
-}
