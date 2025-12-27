@@ -46,7 +46,6 @@ SEwindow *CreateWindow(Allocator a, const char *windowname) {
     XSetStandardProperties(win->disp, win->x11win, win->win.name, win->win.name, None, NULL, 0, NULL);
     XMapWindow(win->disp, win->x11win);
 
-    XFlush(win->disp);
 
 
     //graphics api Init
@@ -183,6 +182,7 @@ void Poll(SEwindow *handle) {
             default: debugerr("Unsupported Event: %d", e.type); break;
         }
     }
+
 }
 
 void DestroyWindow(SEwindow *handle) {

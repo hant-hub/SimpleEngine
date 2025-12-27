@@ -3,17 +3,15 @@
 #define SB_IMPL
 #include "sb.h"
 
-#define ARGS \
-    X(platform, string)
+#define ARGS X(platform, string)
 
-#define OPTS \
-    X(i, bool) \
-    X(f, bool) \
-    X(v, bool) \
-    X(build, string) \
-    X(t, string) \
+#define OPTS                                                                                                           \
+    X(i, bool)                                                                                                         \
+    X(f, bool)                                                                                                         \
+    X(v, bool)                                                                                                         \
+    X(build, string)                                                                                                   \
+    X(t, string)                                                                                                       \
     X(mem, bool)
-
 
 #include "sa.h"
 
@@ -49,7 +47,8 @@ int main(int argc, char *argv[]) {
         } else if (sb_strcmp("release", parsed.build.val) == 0) {
             b = RELEASE;
         }
-    } else b = DEBUG;
+    } else
+        b = DEBUG;
 
     sb_BUILD(argc, argv) {
         sb_chdir_exe();
@@ -57,7 +56,6 @@ int main(int argc, char *argv[]) {
         sb_mkdir("build/tests");
         sb_mkdir("build/objs");
         sb_target_dir("build/");
-
 
         if (parsed.i.set) {
             // downloads latest version of
@@ -69,7 +67,7 @@ int main(int argc, char *argv[]) {
                 sb_cmd_opt("-output-dir");
                 sb_cmd_arg("lib/include/");
             }
-            //simple ds for hashmaps and dynarrays
+            // simple ds for hashmaps and dynarrays
             sb_CMD() {
                 sb_cmd_main("curl");
                 sb_cmd_arg("https://raw.githubusercontent.com/hant-hub/SimpleDS/refs/heads/main/include/ds.h");
@@ -77,7 +75,7 @@ int main(int argc, char *argv[]) {
                 sb_cmd_opt("-output-dir");
                 sb_cmd_arg("lib/include/");
             }
-            //StringBase for string interning
+            // StringBase for string interning
             sb_CMD() {
                 sb_cmd_main("curl");
                 sb_cmd_arg("https://raw.githubusercontent.com/hant-hub/StringBase/refs/heads/main/include/strbase.h");
@@ -146,7 +144,6 @@ int main(int argc, char *argv[]) {
             case RELEASE: buildflag = "DRELEASE"; break;
         }
 
-
         sb_FOREACHFILE(windowdir, source) {
             sb_EXEC() {
                 sb_add_file(source);
@@ -158,7 +155,7 @@ int main(int argc, char *argv[]) {
 
                 sb_add_flag("g");
                 sb_add_flag(buildflag);
-                if (parsed.mem.set) 
+                if (parsed.mem.set)
                     sb_add_flag("fsanitize=address");
 
                 switch (p) {
@@ -194,7 +191,7 @@ int main(int argc, char *argv[]) {
 
                 sb_add_flag("g");
                 sb_add_flag(buildflag);
-                if (parsed.mem.set) 
+                if (parsed.mem.set)
                     sb_add_flag("fsanitize=address");
 
                 char buf[PATH_MAX + 1] = {0};
@@ -221,7 +218,7 @@ int main(int argc, char *argv[]) {
 
                 sb_add_flag("g");
                 sb_add_flag(buildflag);
-                if (parsed.mem.set) 
+                if (parsed.mem.set)
                     sb_add_flag("fsanitize=address");
 
                 char buf[PATH_MAX + 1] = {0};
@@ -238,7 +235,6 @@ int main(int argc, char *argv[]) {
             }
             sb_fence();
         }
-
 
         // Static lib
         sb_FOREACHFILE("build/objs/", file) {
@@ -270,7 +266,7 @@ int main(int argc, char *argv[]) {
                 sb_add_flag(buildflag);
                 sb_link_library("m");
 
-                if (parsed.mem.set) 
+                if (parsed.mem.set)
                     sb_add_flag("fsanitize=address");
 
                 switch (p) {
@@ -296,7 +292,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        //compile shaders to spv
+        // compile shaders to spv
         sb_mkdir("build/shaders");
         sb_FOREACHFILE("shaders/", shader) {
             sb_CMD() {
@@ -314,7 +310,6 @@ int main(int argc, char *argv[]) {
                 printf("shader: %s\n", final);
             }
         }
-
 
         sb_EXEC() {
             sb_add_file("test/runner.c");
@@ -338,7 +333,8 @@ int main(int argc, char *argv[]) {
             sb_export_command();
         }
     }
-    if (!parsed.t.set) return 0;
+    if (!parsed.t.set)
+        return 0;
 
     if (sb_strcmp("all", parsed.t.val) == 0) {
         sb_build_start(argc, argv);
@@ -358,10 +354,8 @@ int main(int argc, char *argv[]) {
         sb_CMD() { sb_cmd_main("clear"); }
         sb_fence();
         char buf[PATH_MAX] = {0};
-        sb_snprintf(buf, PATH_MAX, "build/tests/%s", parsed.t.val); 
-        sb_CMD() {
-            sb_cmd_main(buf);
-        }
+        sb_snprintf(buf, PATH_MAX, "build/tests/%s", parsed.t.val);
+        sb_CMD() { sb_cmd_main(buf); }
         sb_build_end();
     }
 }

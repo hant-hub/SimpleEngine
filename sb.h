@@ -150,89 +150,86 @@ void sb_dry_run();
  * Spooky Macros
  */
 
-#define sb_BUILD(argc, argv)                                                   \
-    for (int i = (sb_build_start(argc, argv),                                  \
-                  sb_autobuild(argc, argv, __FILE__), 0);                      \
-         i == 0; (sb_build_end(), i++))
+#define sb_BUILD(argc, argv)                                                                                           \
+    for (int i = (sb_build_start(argc, argv), sb_autobuild(argc, argv, __FILE__), 0); i == 0; (sb_build_end(), i++))
 
 #define sb_CMD() for (int i = sb_cmd_start(); i == 0; (sb_cmd_end(), i++))
 
 #define sb_EXEC() for (int i = sb_start_exec(); i == 0; (sb_stop_exec(), i++))
 
 // Iterates over files in directory, skips subdirectories
-#define sb_FOREACHFILE(dir, file)                                              \
-    for (char *file = sb_dir_iter(dir); file; file = sb_dir_iter(NULL))
+#define sb_FOREACHFILE(dir, file) for (char *file = sb_dir_iter(dir); file; file = sb_dir_iter(NULL))
 
-#define sb_add_include_path(x)                                                 \
-    _sb_add_include_path((sb_sized_string){                                    \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_add_include_path(x)                                                                                         \
+    _sb_add_include_path((sb_sized_string){                                                                            \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_add_library_path(x)                                                 \
-    _sb_add_library_path((sb_sized_string){                                    \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_add_library_path(x)                                                                                         \
+    _sb_add_library_path((sb_sized_string){                                                                            \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_link_library(x)                                                     \
-    _sb_link_library((sb_sized_string){                                        \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_link_library(x)                                                                                             \
+    _sb_link_library((sb_sized_string){                                                                                \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_add_file(x)                                                         \
-    _sb_add_file((sb_sized_string){                                            \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_add_file(x)                                                                                                 \
+    _sb_add_file((sb_sized_string){                                                                                    \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_add_source_dir(x)                                                   \
-    _sb_add_source_dir((sb_sized_string){                                      \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_add_source_dir(x)                                                                                           \
+    _sb_add_source_dir((sb_sized_string){                                                                              \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_add_header(x)                                                       \
-    _sb_add_header((sb_sized_string){                                          \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_add_header(x)                                                                                               \
+    _sb_add_header((sb_sized_string){                                                                                  \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_set_out(x)                                                          \
-    _sb_set_out((sb_sized_string){                                             \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_set_out(x)                                                                                                  \
+    _sb_set_out((sb_sized_string){                                                                                     \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_add_flag(x)                                                         \
-    _sb_add_flag((sb_sized_string){                                            \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_add_flag(x)                                                                                                 \
+    _sb_add_flag((sb_sized_string){                                                                                    \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_target_dir(x)                                                       \
-    _sb_target_dir((sb_sized_string){                                          \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_target_dir(x)                                                                                               \
+    _sb_target_dir((sb_sized_string){                                                                                  \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_cmd_main(x)                                                         \
-    _sb_cmd_main((sb_sized_string){                                            \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_cmd_main(x)                                                                                                 \
+    _sb_cmd_main((sb_sized_string){                                                                                    \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_cmd_opt(x)                                                          \
-    _sb_cmd_opt((sb_sized_string){                                             \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_cmd_opt(x)                                                                                                  \
+    _sb_cmd_opt((sb_sized_string){                                                                                     \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
-#define sb_cmd_arg(x)                                                          \
-    _sb_cmd_arg((sb_sized_string){                                             \
-        .string = x,                                                           \
-        .size = sb_strlen(x),                                                  \
+#define sb_cmd_arg(x)                                                                                                  \
+    _sb_cmd_arg((sb_sized_string){                                                                                     \
+        .string = x,                                                                                                   \
+        .size = sb_strlen(x),                                                                                          \
     })
 
 #ifdef SB_IMPL
@@ -292,15 +289,9 @@ typedef struct sb_cmd_list {
 sb_file sb_open(char *file, sb_file_mode mode, sb_file_flags flags) {
     int o_mode = 0;
     switch (mode) {
-    case sbf_READ:
-        o_mode = O_RDONLY;
-        break;
-    case sbf_WRITE:
-        o_mode = O_WRONLY;
-        break;
-    case sbf_READWRITE:
-        o_mode = O_RDWR;
-        break;
+        case sbf_READ: o_mode = O_RDONLY; break;
+        case sbf_WRITE: o_mode = O_WRONLY; break;
+        case sbf_READWRITE: o_mode = O_RDWR; break;
     }
 
     if (flags & sbf_CREATE) {
@@ -410,9 +401,7 @@ void sb_chdir_exe() {
     sb_chdir(tmp);
 }
 
-void sb_strcpy(char *dst, const sb_sized_string s) {
-    memcpy(dst, s.string, s.size);
-}
+void sb_strcpy(char *dst, const sb_sized_string s) { memcpy(dst, s.string, s.size); }
 
 uint32_t sb_strlen(const char *s) { return strlen(s); }
 
@@ -646,8 +635,7 @@ int sb_cmd_start() {
 void sb_cmd_end() {
     if (cmd_list.isize + 1 > cmd_list.icap) {
         cmd_list.icap = cmd_list.icap ? cmd_list.icap * 2 : 16;
-        cmd_list.indicies =
-            sb_realloc(cmd_list.indicies, cmd_list.icap * sizeof(sb_cmd));
+        cmd_list.indicies = sb_realloc(cmd_list.indicies, cmd_list.icap * sizeof(sb_cmd));
     }
 
     if (curr_exe.fsize && curr_exe.dry) {
@@ -738,8 +726,7 @@ void sb_autobuild(int argc, char *argv[], char *src) {
 void sb_fence() {
     if (cmd_list.isize + 1 > cmd_list.icap) {
         cmd_list.icap = cmd_list.icap ? cmd_list.icap * 2 : 16;
-        cmd_list.indicies =
-            sb_realloc(cmd_list.indicies, cmd_list.icap * sizeof(sb_cmd));
+        cmd_list.indicies = sb_realloc(cmd_list.indicies, cmd_list.icap * sizeof(sb_cmd));
     }
 
     cmd_list.indicies[cmd_list.isize++] = (sb_cmd){.start = -1};
@@ -766,8 +753,7 @@ void _sb_add_header(sb_sized_string f) {
 
     if (curr_exe.hsize + 1 > curr_exe.hcap) {
         curr_exe.hcap = curr_exe.hcap ? curr_exe.hcap * 2 : 2;
-        curr_exe.headers =
-            sb_realloc(curr_exe.headers, curr_exe.hcap * sizeof(uint32_t));
+        curr_exe.headers = sb_realloc(curr_exe.headers, curr_exe.hcap * sizeof(uint32_t));
     }
 
     curr_exe.headers[curr_exe.hsize++] = curr_exe.tsize;
@@ -785,8 +771,7 @@ void _sb_add_file(sb_sized_string f) {
 
     if (curr_exe.fsize + 1 > curr_exe.fcap) {
         curr_exe.fcap = curr_exe.fcap ? curr_exe.fcap * 2 : 2;
-        curr_exe.files =
-            sb_realloc(curr_exe.files, curr_exe.fcap * sizeof(uint32_t));
+        curr_exe.files = sb_realloc(curr_exe.files, curr_exe.fcap * sizeof(uint32_t));
     }
 
     curr_exe.files[curr_exe.fsize++] = curr_exe.tsize;
@@ -826,9 +811,7 @@ void _sb_add_source_dir(sb_sized_string f) {
     }
 }
 
-void _sb_target_dir(sb_sized_string f) {
-    sb_snprintf(build_dir, sizeof(build_dir), "%s", f.string);
-}
+void _sb_target_dir(sb_sized_string f) { sb_snprintf(build_dir, sizeof(build_dir), "%s", f.string); }
 
 void _sb_set_out(sb_sized_string f) {
     if (curr_exe.tsize + f.size + 1 > curr_exe.tcap) {
@@ -852,8 +835,7 @@ void _sb_add_flag(sb_sized_string f) {
 
     if (curr_exe.osize + 1 > curr_exe.ocap) {
         curr_exe.ocap = curr_exe.ocap ? curr_exe.ocap * 2 : 2;
-        curr_exe.options =
-            sb_realloc(curr_exe.options, curr_exe.ocap * sizeof(uint32_t));
+        curr_exe.options = sb_realloc(curr_exe.options, curr_exe.ocap * sizeof(uint32_t));
     }
 
     curr_exe.options[curr_exe.osize++] = curr_exe.tsize;
@@ -873,17 +855,16 @@ void sb_set_find_deps() {
 
 void sb_set_optmize(uint32_t level) {
     switch (level) {
-    case 1: {
-        sb_add_flag("O1");
-    } break;
-    case 2: {
-        sb_add_flag("O2");
-    } break;
-    case 3: {
-        sb_add_flag("O3");
-    } break;
-    default:
-        break;
+        case 1: {
+            sb_add_flag("O1");
+        } break;
+        case 2: {
+            sb_add_flag("O2");
+        } break;
+        case 3: {
+            sb_add_flag("O3");
+        } break;
+        default: break;
     }
 }
 
@@ -922,8 +903,7 @@ void write_command_entry(char *filep) {
 
     // flags
     for (uint32_t i = 0; i < curr_exe.osize; i++) {
-        sb_fprintf(compile_cmds, "\"-%s\", ",
-                   &curr_exe.text[curr_exe.options[i]]);
+        sb_fprintf(compile_cmds, "\"-%s\", ", &curr_exe.text[curr_exe.options[i]]);
     }
 
     // sources files
@@ -934,8 +914,7 @@ void write_command_entry(char *filep) {
     // output
     sb_fprintf(compile_cmds, "\"-o\", ");
     char output[PATH_MAX] = {0};
-    sb_snprintf(output, sizeof(output), "\"%s/%s\"", build_dir,
-                &curr_exe.text[curr_exe.output]);
+    sb_snprintf(output, sizeof(output), "\"%s/%s\"", build_dir, &curr_exe.text[curr_exe.output]);
     sb_fprintf(compile_cmds, "%s", output);
 
     sb_fprintf(compile_cmds, "]\n");
@@ -988,20 +967,15 @@ void sb_stop_exec() {
         sb_CMD() {
             _sb_cmd_main(compiler);
             // flags
-            for (uint32_t i = 0; i < curr_exe.osize; i++) {
-                sb_cmd_opt(&curr_exe.text[curr_exe.options[i]]);
-            }
+            for (uint32_t i = 0; i < curr_exe.osize; i++) { sb_cmd_opt(&curr_exe.text[curr_exe.options[i]]); }
 
             // sources files
-            for (uint32_t i = 0; i < curr_exe.fsize; i++) {
-                sb_cmd_arg(&curr_exe.text[curr_exe.files[i]]);
-            }
+            for (uint32_t i = 0; i < curr_exe.fsize; i++) { sb_cmd_arg(&curr_exe.text[curr_exe.files[i]]); }
 
             // output
             sb_cmd_opt("o");
             char output[PATH_MAX] = {0};
-            sb_snprintf(output, sizeof(output), "%s%s", build_dir,
-                        &curr_exe.text[curr_exe.output]);
+            sb_snprintf(output, sizeof(output), "%s%s", build_dir, &curr_exe.text[curr_exe.output]);
             sb_cmd_arg(output);
         }
     } else {
@@ -1010,12 +984,10 @@ void sb_stop_exec() {
             sb_snprintf(binname, sizeof(binname), "%s%s.o", build_dir,
                         sb_basename(&curr_exe.text[curr_exe.files[subfile]]));
 
-            int should_build =
-                sb_cmptime(binname, &curr_exe.text[curr_exe.files[subfile]]);
+            int should_build = sb_cmptime(binname, &curr_exe.text[curr_exe.files[subfile]]);
 
             char srcname[PATH_MAX] = {0};
-            sb_snprintf(srcname, PATH_MAX, "%s%s", build_dir,
-                        sb_basename(&curr_exe.text[curr_exe.files[subfile]]));
+            sb_snprintf(srcname, PATH_MAX, "%s%s", build_dir, sb_basename(&curr_exe.text[curr_exe.files[subfile]]));
             should_build |= sb_autodeps(binname, srcname);
 
             if (!should_build)
@@ -1024,9 +996,7 @@ void sb_stop_exec() {
             sb_CMD() {
                 _sb_cmd_main(compiler);
                 // flags
-                for (uint32_t i = 0; i < curr_exe.osize; i++) {
-                    sb_cmd_opt(&curr_exe.text[curr_exe.options[i]]);
-                }
+                for (uint32_t i = 0; i < curr_exe.osize; i++) { sb_cmd_opt(&curr_exe.text[curr_exe.options[i]]); }
 
                 // source file
                 sb_cmd_opt("c");
@@ -1041,35 +1011,27 @@ void sb_stop_exec() {
         int should_build = 0;
         for (uint32_t i = 0; i < curr_exe.fsize; i++) {
             char binname[PATH_MAX] = {0};
-            sb_snprintf(binname, sizeof(binname), "%s%s.o", build_dir,
-                        sb_basename(&curr_exe.text[curr_exe.files[i]]));
-            should_build |=
-                sb_cmptime(binname, &curr_exe.text[curr_exe.files[i]]);
+            sb_snprintf(binname, sizeof(binname), "%s%s.o", build_dir, sb_basename(&curr_exe.text[curr_exe.files[i]]));
+            should_build |= sb_cmptime(binname, &curr_exe.text[curr_exe.files[i]]);
         }
 
         for (uint32_t i = 0; i < curr_exe.hsize; i++) {
             char binname[PATH_MAX] = {0};
-            sb_snprintf(binname, sizeof(binname), "%s%s", build_dir,
-                        &curr_exe.text[curr_exe.output]);
-            should_build |=
-                sb_cmptime(binname, &curr_exe.text[curr_exe.headers[i]]);
+            sb_snprintf(binname, sizeof(binname), "%s%s", build_dir, &curr_exe.text[curr_exe.output]);
+            should_build |= sb_cmptime(binname, &curr_exe.text[curr_exe.headers[i]]);
         }
 
         char binname[PATH_MAX] = {0};
         char srcname[PATH_MAX] = {0};
-        sb_snprintf(binname, PATH_MAX, "%s%s", build_dir,
-                    &curr_exe.text[curr_exe.output]);
-        sb_snprintf(srcname, PATH_MAX, "%s%s", build_dir,
-                    &curr_exe.text[curr_exe.output]);
+        sb_snprintf(binname, PATH_MAX, "%s%s", build_dir, &curr_exe.text[curr_exe.output]);
+        sb_snprintf(srcname, PATH_MAX, "%s%s", build_dir, &curr_exe.text[curr_exe.output]);
         should_build |= sb_autodeps(binname, srcname);
 
         if (should_build) {
             sb_CMD() {
                 _sb_cmd_main(compiler);
                 // flags
-                for (uint32_t i = 0; i < curr_exe.osize; i++) {
-                    sb_cmd_opt(&curr_exe.text[curr_exe.options[i]]);
-                }
+                for (uint32_t i = 0; i < curr_exe.osize; i++) { sb_cmd_opt(&curr_exe.text[curr_exe.options[i]]); }
 
                 // sources files
                 for (uint32_t i = 0; i < curr_exe.fsize; i++) {
@@ -1082,8 +1044,7 @@ void sb_stop_exec() {
                 // output
                 sb_cmd_opt("o");
                 char output[PATH_MAX] = {0};
-                sb_snprintf(output, sizeof(output), "%s%s", build_dir,
-                            &curr_exe.text[curr_exe.output]);
+                sb_snprintf(output, sizeof(output), "%s%s", build_dir, &curr_exe.text[curr_exe.output]);
                 sb_cmd_arg(output);
             }
         }
@@ -1092,8 +1053,7 @@ void sb_stop_exec() {
     if (curr_exe.export_commands) {
         // write out compile_commands file
         if (!compile_cmds) {
-            compile_cmds = sb_open("compile_commands.json", sbf_WRITE,
-                                   sbf_CREATE | sbf_TRUNC);
+            compile_cmds = sb_open("compile_commands.json", sbf_WRITE, sbf_CREATE | sbf_TRUNC);
             sb_fprintf(compile_cmds, "[\n");
         } else {
             printf("hit: %s\n", &curr_exe.text[curr_exe.output]);
@@ -1103,7 +1063,8 @@ void sb_stop_exec() {
         // source entries
         for (uint32_t i = 0; i < curr_exe.fsize; i++) {
             write_command_entry(&curr_exe.text[curr_exe.files[i]]);
-            if (i + 1 < curr_exe.fsize || curr_exe.hsize) sb_fprintf(compile_cmds, ",\n");
+            if (i + 1 < curr_exe.fsize || curr_exe.hsize)
+                sb_fprintf(compile_cmds, ",\n");
         }
 
         // header entries
