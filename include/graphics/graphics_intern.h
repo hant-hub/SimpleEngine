@@ -1,10 +1,11 @@
-#ifndef SE_INIT_H
-#define SE_INIT_H
+#ifndef SE_GRAPHICS_INTERN_H
+#define SE_GRAPHICS_INTERN_H
 
 #include "cutils.h"
 #include "ds.h"
 #include "vulkan/vk_platform.h"
 #include "vulkan/vulkan_core.h"
+
 
 #include <graphics/graphics.h>
 
@@ -24,6 +25,18 @@ typedef struct SwapChainInfo {
     u32 numformats;
     u32 nummodes;
 } SwapChainInfo;
+
+typedef struct MemoryRange {
+    u32 offset;
+    u32 size;
+} MemoryRange;
+
+typedef struct MemoryManager {
+    VkDeviceMemory backingmem;
+    u32 flags;
+    dynArray(MemoryRange) freelist;
+} MemoryManager;
+
 
 typedef struct Attachment {
     VkImageView view;
@@ -48,11 +61,12 @@ typedef struct SEVulkan {
     SwapChainInfo swapInfo;
     VkDevice dev; 
     VkSurfaceKHR surf;
-    VkCommandPool pool; //TODO(ELI): Remove pool and buf
+    VkCommandPool pool;
     VkCommandBuffer buf;
 
     dynArray(VkSemaphore) imgAvalible;
     dynArray(VkSemaphore) renderfinished;
+    dynArray(MemoryManager) memoryHeaps;
     VkFence inFlight;
 
     struct {
@@ -90,19 +104,7 @@ typedef struct SEVulkan {
     #endif
 } SEVulkan;
 
-
-//renderpass
-typedef struct SERenderPass {
-    VkRenderPass pass;
-    VkFramebuffer* buffers;
-    u32 numBuffers;
-    u32 pipeline; //one for now
-} SERenderPass;
-
 //Rendergraph data
-
-
-
 typedef struct SEAttachmentInfo {
     VkFormat f;
     bool8 clear;
@@ -116,13 +118,12 @@ typedef enum ResourceUsage {
     RESOURCE_WRITE = 1 << 1,
 } ResourceUsage;
 
-typedef enum ResourceType {
+typedef enum AttachmentTyp {
     COLOR_ATTACHMENT = 0,
-    VERTEX_BUFFER,
-} ResourceType;
+} AttachmentType;
 
 typedef struct Resource {
-    ResourceType type;
+    AttachmentType type;
     ResourceUsage lastUsage; 
     
     union {
@@ -133,21 +134,37 @@ typedef struct Resource {
     bool8 swapchain;
 } Resource;
 
+
+
 //structure to store graph before object creation
 typedef struct SERenderPassInfo {
     u32 readStart;
     u32 numReads;
     u32 writeStart;
     u32 numWrites;
-    u32 vertex;
-    u32 fragment;
-    u32 layout;
+
+    struct {
+        u32 vertex;
+        u32 fragment;
+        u32 layout;
+    } pipeline;
+
+    struct {
+        u32 firstBinding;
+        u32 numBindings;
+
+        u32 firstAttr;
+        u32 numAttrs;
+    } vertInfo;
+
     void* func;
 } SERenderPassInfo;
 
 typedef struct SERenderPipelineInfo {
     Allocator a;
 
+    dynArray(VkVertexInputBindingDescription) bindings;
+    dynArray(VkVertexInputAttributeDescription) attrs;
     dynArray(SERenderPassInfo) passes;
     dynArray(VkShaderModule) shaders;
     dynArray(VkPipelineLayout) layouts;
@@ -205,12 +222,25 @@ extern VKAPI_ATTR void VKAPI_CALL (*DestroyDebugMessenger)(
     VkDebugUtilsMessengerEXT                    messenger,
     const VkAllocationCallbacks*                pAllocator);
 
+MemoryManager CreateManager(Allocator a, u32 idx, u32 flags, u32 size, SEVulkan* v);
+MemoryRange AllocateDeviceMem(MemoryManager* m, u32 size);
+void FreeDeviceMem(MemoryManager* m, MemoryRange r);
+void DestroyManager(SEVulkan* v, MemoryManager m);
+
+
 void LoadExtensionFuncs(VkInstance instance);
 
 void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g);
 void DestroyVulkan(SEVulkan g, Allocator a);
 
 //helpers
-VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r, VkPipelineLayout layout, VkShaderModule vert, VkShaderModule frag);
+VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r,
+        VkVertexInputBindingDescription* bindings,
+        u32 bindnum,
+        VkVertexInputAttributeDescription* attributes,
+        u32 attrnum,
+        VkPipelineLayout layout,
+        VkShaderModule vert,
+        VkShaderModule frag);
 
 #endif

@@ -1,14 +1,42 @@
+#include "graphics/graphics.h"
 #include "se.h"
 #include "cutils.h"
 #include <stddef.h>
+
+#include <core/introspect.h>
 
 
 int main() {
     setdirExe();
     InitSE();
     SEwindow* win = CreateWindow(GlobalAllocator, "test");
+    SERenderPipelineInfo* r = SECreatePipeline(win);
 
+    SEStructSpec vertSpec[] = {
+        (SEStructSpec){
+            .name = sstring("x"),
+            .offset = 0,
+            .type = SE_VAR_TYPE_F32,
+            .size = sizeof(f32),
+        },
+        (SEStructSpec){
+            .name = sstring("y"),
+            .offset = sizeof(f32),
+            .type = SE_VAR_TYPE_F32,
+            .size = sizeof(f32),
+        },
+        (SEStructSpec){
+            .name = sstring("z"),
+            .offset = sizeof(f32) * 2,
+            .type = SE_VAR_TYPE_F32,
+            .size = sizeof(f32),
+        },
+    };
 
+    SEBeginRenderPass(r);
+    AddVertexBinding(r, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
+    SEEndRenderPass(r);
+    
 
     /* API PLAN
         typedef struct Vertex {

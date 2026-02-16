@@ -1,17 +1,19 @@
+#include "graphics/graphics.h"
 #include "se.h"
 #include "cutils.h"
-#include <graphics/graphics_intern.h>
-#include <vulkan/vulkan.h>
+#include "vulkan/vulkan_core.h"
 
+typedef struct SECmdBuf {
+    VkCommandBuffer buf;
+} SECmdBuf;
 
+static VkBuffer* buf = NULL;
 
-void CustomDraw(SECmdBuf* cmd, void* handle) {
-    VkBuffer b = 0;
-    VkDeviceSize s = 0;
-    vkCmdBindVertexBuffers(cmd->buf, 0, 1, &b, &s);
-    vkCmdDraw(cmd->buf, 3, 1, 0, 0);
+void temp(SECmdBuf* p, void* pass) {
+    VkDeviceSize sizes[] = {0.0f};
+    vkCmdBindVertexBuffers(p->buf, 0, 1, buf, sizes);
+    vkCmdDraw(p->buf, 3, 1, 0, 0);
 }
-
 
 int main() {
     setdirExe();
@@ -20,6 +22,14 @@ int main() {
 
     SERenderPipelineInfo* r = SECreatePipeline(win);
 
+    u32 r1 = SEAddResource(r, TRUE);
+
+    u32 vert = SEAddShader(win, r, sstring("../shaders/basic.vert.spv"));
+    u32 vert2 = SEAddShader(win, r, sstring("../shaders/shift.vert.spv"));
+    u32 frag = SEAddShader(win, r, sstring("../shaders/basic.frag.spv"));
+    
+    u32 layout = SEAddLayout(win, r);
+
     SEStructSpec vertSpec[] = {
         (SEStructSpec){
             .name = sstring("x"),
@@ -27,33 +37,22 @@ int main() {
             .type = SE_VAR_TYPE_U32,
             .size = sizeof(u32),
         },
-        (SEStructSpec){
-            .name = sstring("y"),
-            .offset = sizeof(u32),
-            .type = SE_VAR_TYPE_U32,
-            .size = sizeof(u32),
-        },
-        (SEStructSpec){
-            .name = sstring("z"),
-            .offset = sizeof(u32) * 2,
-            .type = SE_VAR_TYPE_U32,
-            .size = sizeof(u32),
-        },
     };
-
-    u32 r1 = SEAddResource(r, TRUE);
-
-    u32 vert = SEAddShader(win, r, sstring("../shaders/basic.vert.spv"));
-    u32 vert2 = SEAddShader(win, r, sstring("../shaders/basic2.vert.spv"));
-    u32 frag = SEAddShader(win, r, sstring("../shaders/basic.frag.spv"));
-    
-    u32 layout = SEAddLayout(win, r);
 
     SEBeginRenderPass(r);
 
-    AddVertexBinding(r, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
     SEBindShaders(r, vert, frag, layout);
-    SEAddDrawFunc(r, CustomDraw);
+    SEAddDrawFunc(r, DrawTriangle);
+
+    SEWriteResource(r, 0);
+
+    SEEndRenderPass(r);
+    SEBeginRenderPass(r);
+
+    AddVertexBinding(r, SE_BINDING_INSTANCE, vertSpec, ARRAY_SIZE(vertSpec));
+
+    SEBindShaders(r, vert2, frag, layout);
+    SEAddDrawFunc(r, temp);
 
     SEWriteResource(r, 0);
 

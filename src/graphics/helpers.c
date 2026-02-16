@@ -4,7 +4,16 @@
 #include "vulkan/vulkan_core.h"
 #include <graphics/graphics_intern.h>
 
-VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r, VkPipelineLayout layout, VkShaderModule vert, VkShaderModule frag) {
+VkPipeline CreatePipeline(SEVulkan* v,
+        VkRenderPass r,
+        VkVertexInputBindingDescription* bindings,
+        u32 bindnum,
+        VkVertexInputAttributeDescription* attributes,
+        u32 attrnum,
+        VkPipelineLayout layout,
+        VkShaderModule vert,
+        VkShaderModule frag) {
+
     VkPipelineShaderStageCreateInfo shaders[2]; 
     shaders[0] = (VkPipelineShaderStageCreateInfo){
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -21,8 +30,10 @@ VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r, VkPipelineLayout layout, 
 
     VkPipelineVertexInputStateCreateInfo vertinput = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexAttributeDescriptionCount = 0,
-        .vertexBindingDescriptionCount = 0,
+        .vertexAttributeDescriptionCount = attrnum,
+        .vertexBindingDescriptionCount = bindnum,
+        .pVertexAttributeDescriptions = attributes,
+        .pVertexBindingDescriptions = bindings,
     };
 
     VkPipelineInputAssemblyStateCreateInfo assem = {

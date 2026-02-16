@@ -1,6 +1,30 @@
-#include "vulkan/vk_platform.h"
-#include "vulkan/vulkan_core.h"
+#ifndef SE_GRAPHICS_H
+#define SE_GRAPHICS_H
+
 #include "cutils.h"
+#include <core/introspect.h>
+
+//TODO(ELI): Replace flags with engine provided types
+//TODO(ELI): Custom logic stuff
+#include "vulkan/vulkan_core.h"
+typedef struct SEGraphicsSettings {
+    struct {
+        bool8 set;
+        u64 size;
+    } minMemory;
+
+    struct {
+        bool8 set;
+        VkImageUsageFlagBits* imgflags;
+        u32 num_flags;
+    } minMemoryImg; 
+
+    struct {
+        bool8 set;
+        VkBufferUsageFlagBits* bufflags;
+        u32 num_flags;
+    } minMemoryBuf; 
+} SEGraphicsSettings;
 
 typedef struct SEwindow SEwindow;
 
@@ -37,3 +61,13 @@ void SEDestroyPipeline(SEwindow* win, SERenderPipeline* r);
 void SEDestroyPipelineInfo(SEwindow* win, SERenderPipelineInfo* r);
 
 void SEDrawPipeline(SEwindow* win, SERenderPipeline* r);
+
+//descriptors
+typedef enum SEBindingType {
+    SE_BINDING_VERTEX,
+    SE_BINDING_INSTANCE,
+} SEBindingType;
+
+void AddVertexBinding(SERenderPipelineInfo* rinfo, SEBindingType type, SEStructSpec* layout, u32 numMembers);
+
+#endif

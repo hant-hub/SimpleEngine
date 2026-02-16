@@ -2,7 +2,7 @@
 #include <cutils.h>
 
 /*
-    Dynamic arrays
+    Inline Dynamic Arrays
 */
 
 #define dynArray(type)                                                         \
@@ -73,7 +73,7 @@
 
 #define dynDel(array, idx)                                                     \
     do {                                                                       \
-        for (u32 i = idx; i < ints.size - 1; i++) {                            \
+        for (u32 i = idx; i < array.size - 1; i++) {                            \
             array.data[i] = array.data[i + 1];                                 \
         }                                                                      \
         dynResize(array, array.size - 1);                                      \
@@ -81,17 +81,97 @@
 
 #define dynExt(array, vals, num)                                               \
     do {                                                                       \
-        dynResize(array, array.size + num);                                    \
-        for (u64 i = array.size - num; i < array.size; i++) {                  \
-            array.data[i] = vals[i - array.size + num];                        \
+        dynResize(array, array.size + (num));                                  \
+        for (u64 i = array.size - (num); i < array.size; i++) {                \
+            array.data[i] = (vals)[i - array.size + (num)];                    \
         }                                                                      \
     } while (0)
+
+/*
+    Forward Dynamic Arrays
+*/
+#define DefDynArrayDecl(name, type)                                            \
+    typedef struct name {                                                      \
+        Allocator a;                                                           \
+        u64 size;                                                              \
+        u64 cap;                                                               \
+        type *data;                                                            \
+    } name;                                                                    \
+    void name##Push(name *arr, type val);                                      \
+    void name##Reserve(name *arr, u64 size);                                   \
+    void name##Resize(name *arr, u64 size);                                    \
+    type name##Back(name *arr);                                                \
+    void name##Free(name *arr);                                                \
+    void name##Ins(name *arr, u64 idx, type val);                              \
+    void name##Del(name *arr, u64 idx);                                        \
+    void name##Ext(name *arr, type *vals, u64 num)
+
+#define DefDynArrayImpl(name, type)                                            \
+    void name##Push(name *arr, type val) {                                     \
+        if (arr->size + 1 > arr->cap) {                                        \
+            u64 oldcap = arr->cap;                                             \
+                                                                               \
+            arr->cap = arr->cap ? arr->cap * 2 : 4;                            \
+            arr->data = Realloc(arr->a, arr->data, oldcap * sizeof(val),       \
+                                arr->cap * sizeof(val));                       \
+        }                                                                      \
+        arr->data[arr->size++] = val;                                          \
+    }                                                                          \
+    void name##Reserve(name *arr, u64 size) {                                  \
+        if (arr->cap < size) {                                                 \
+            arr->data =                                                        \
+                Realloc(arr->a, arr->data, arr->cap * sizeof(arr->data[0]),    \
+                        size * sizeof(arr->data[0]));                          \
+            arr->cap = size;                                                   \
+        }                                                                      \
+    }                                                                          \
+    void name##Resize(name *arr, u64 size) {                                   \
+        if (arr->cap < size) {                                                 \
+            u64 oldsize = arr->cap;                                            \
+            while (arr->cap < size) {                                          \
+                arr->cap = arr->cap ? arr->cap * 2 : 4;                        \
+            }                                                                  \
+            arr->data =                                                        \
+                Realloc(arr->a, arr->data, oldsize * sizeof(arr->data[0]),     \
+                        arr->cap * sizeof(arr->data[0]));                      \
+        }                                                                      \
+                                                                               \
+        if (arr->size < size) {                                                \
+            char *d = (char *)&arr->data[arr->size];                           \
+            u32 len = (size - arr->size) * sizeof(arr->data[0]);               \
+            for (u32 i = 0; i < len; i++) d[i] = 0;                            \
+        }                                                                      \
+        arr->size = size;                                                      \
+    }                                                                          \
+    type name##Back(name *arr) { return arr->data[arr->size - 1]; }            \
+    void name##Free(name *arr) {                                               \
+        Free(arr->a, arr->data, arr->cap * sizeof(arr->data[0]));              \
+    }                                                                          \
+    void name##Ins(name *arr, u64 idx, type val) {                             \
+        name##Resize(arr, arr->size + 1);                                      \
+        for (i64 i = arr->size - 1; i >= idx; i--) {                           \
+            arr->data[i + 1] = arr->data[i];                                   \
+        }                                                                      \
+        arr->data[idx] = val;                                                  \
+    }                                                                          \
+    void name##Del(name *arr, u64 idx) {                                       \
+        for (u32 i = idx; i < arr->size - 1; i++) {                            \
+            arr->data[i] = arr->data[i + 1];                                   \
+        }                                                                      \
+        name##Resize(arr, arr->size - 1);                                      \
+    }                                                                          \
+    void name##Ext(name *arr, type *vals, u64 num) {                           \
+        name##Resize(arr, arr->size + num);                                    \
+        for (u64 i = arr->size - num; i < arr->size; i++) {                    \
+            arr->data[i] = vals[i - arr->size + num];                          \
+        }                                                                      \
+    }
 
 /*
     HashMap
 
     One is for non string keys, other is for arbitrary sized string
-    keys
+    key
 */
 
 #define MAX_LOAD 0.9
@@ -210,6 +290,8 @@
         }                                                                      \
     }                                                                          \
     val *name##Get(name *map, key ky) {                                        \
+        if (!map->cap)                                                         \
+            return NULL;                                                       \
         typeof(map->keys[0].k) tempk = ky;                                     \
         u32 hash = FNVHash32((u8 *)&tempk, sizeof(tempk));                     \
                                                                                \
