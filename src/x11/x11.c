@@ -174,6 +174,8 @@ void Poll(SEwindow *handle) {
                     handle->resize = TRUE;
                 }
             } break;
+
+            case MapNotify:
             case Expose:
             {
                 //debuglog("Expose Event");

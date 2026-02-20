@@ -26,28 +26,23 @@ typedef struct SwapChainInfo {
     u32 nummodes;
 } SwapChainInfo;
 
-typedef struct MemoryRange {
-    u32 offset;
-    u32 size;
-} MemoryRange;
-
 typedef struct MemoryManager {
-    VkDeviceMemory backingmem;
-    u32 flags;
     dynArray(MemoryRange) freelist;
 } MemoryManager;
-
 
 typedef struct Attachment {
     VkImageView view;
     bool8 pending;
 } Attachment;
 
-typedef struct Buffer {
-    VkBuffer buf;
-    bool8 pending;
-} Buffer;
-
+typedef struct BufferAllocator {
+    VkBuffer b;
+    u32 memid;
+    u64 alignment;
+    MemoryRange r; //range of memory allocation
+    MemoryManager m;
+} BufferAllocator;
+BufferAllocator InitBufferAllocator(SEwindow* w, u32 usage, u32 props, u64 size);
 
 //vulkan
 typedef struct SEVulkan {
@@ -66,8 +61,16 @@ typedef struct SEVulkan {
 
     dynArray(VkSemaphore) imgAvalible;
     dynArray(VkSemaphore) renderfinished;
-    dynArray(MemoryManager) memoryHeaps;
     VkFence inFlight;
+
+    struct {
+        dynArray(MemoryManager) heaps;
+        dynArray(VkDeviceMemory) mem;
+        dynArray(u32) types;
+        dynArray(VkMemoryPropertyFlags) props;
+    } memory;
+
+    dynArray(BufferAllocator) bufAllocators;
 
     struct {
         //Will be the same if
@@ -118,16 +121,22 @@ typedef enum ResourceUsage {
     RESOURCE_WRITE = 1 << 1,
 } ResourceUsage;
 
-typedef enum AttachmentTyp {
-    COLOR_ATTACHMENT = 0,
-} AttachmentType;
+typedef enum ResourceType {
+    RESOURCE_COLOR_ATTACHMENT = 0,
+    RESOURCE_VERTEX_BUFFER,
+} ResourceType;
 
 typedef struct Resource {
-    AttachmentType type;
+    ResourceType type;
     ResourceUsage lastUsage; 
     
+    //TODO(ELI): move views etc into a central
+    //Image Allocator. Use Resource Type + idx
+    //to retrieve resource info.
+    u32 idx;
     union {
         VkImageView view;
+        SEBuffer buffer;
     } vk;
 
     bool8 clear;
@@ -182,6 +191,17 @@ typedef struct SEPass {
     VkPipeline pipe;
     SEDrawFunc func;
     u32 framebuffer;
+
+    struct {
+        u32 start;
+        u32 size;
+    } vertbufs;
+
+    struct {
+        u32 start;
+        u32 size;
+    } idxbufs;
+
     bool8 targetSwap; //If we target a swapchain image
                       //We need to use the image index to
                       //pick the correct framebuffer
@@ -193,6 +213,7 @@ typedef struct PipelineBarrier {
     VkDependencyFlags depFlags; //specify region stuff (probably ignore)
     VkMemoryBarrier barrier;
     VkImageMemoryBarrier imageBarrier; //do layout transitions (probably not necessary)
+    VkBufferMemoryBarrier bufferBarrier;
 } PipelineBarrier;
 
 typedef struct SERenderPipeline {
@@ -200,7 +221,9 @@ typedef struct SERenderPipeline {
     VkCommandBuffer buf;
 
     dynArray(PipelineBarrier) barriers;
-    dynArray(VkFramebuffer) buffers;
+    dynArray(VkFramebuffer) framebuffers;
+    dynArray(SEBuffer) vertexBuffers;
+    dynArray(SEBuffer) indexBuffers;
     dynArray(SEPass) passes;
 } SERenderPipeline;
 
@@ -222,10 +245,10 @@ extern VKAPI_ATTR void VKAPI_CALL (*DestroyDebugMessenger)(
     VkDebugUtilsMessengerEXT                    messenger,
     const VkAllocationCallbacks*                pAllocator);
 
-MemoryManager CreateManager(Allocator a, u32 idx, u32 flags, u32 size, SEVulkan* v);
-MemoryRange AllocateDeviceMem(MemoryManager* m, u32 size);
+MemoryManager CreateManager(Allocator a, u32 size);
+MemoryRange AllocateDeviceMem(MemoryManager* m, u32 size, u32 alignment);
 void FreeDeviceMem(MemoryManager* m, MemoryRange r);
-void DestroyManager(SEVulkan* v, MemoryManager m);
+void DestroyManager(MemoryManager m);
 
 
 void LoadExtensionFuncs(VkInstance instance);

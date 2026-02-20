@@ -247,7 +247,6 @@ u32 PhysicalDeviceScore(VkPhysicalDevice p, VkSurfaceKHR surf, SwapChainInfo* de
     return score * presentSupport * extensionSupport * swapSupport;//0 is unsuitable, anything else is suitable
 }
 
-#define MIN_HEAP_MEMORY (MB(4))
 
 //Platform agnostic vulkan code
 void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g) {
@@ -264,7 +263,11 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
     g->resources.pipelines.a = a;
     g->imgAvalible.a = a;
     g->renderfinished.a = a;
-    g->memoryHeaps.a = a;
+    g->memory.heaps.a = a;
+    g->memory.mem.a = a;
+    g->memory.types.a = a;
+    g->memory.props.a = a;
+    g->bufAllocators.a = a;
 
     VkDebugUtilsMessengerCreateInfoEXT messengerInfo = {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -410,37 +413,26 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         printlog("\tsize: %l MB\n", heap.size/MB(1));
         printlog("\tDevice Local: %d\n", !!(heap.flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT));
     }
-
-    dynResize(g->memoryHeaps, memProps.memoryTypeCount);
-    for (u32 i = 0; i < memProps.memoryTypeCount; i++) {
-        VkMemoryType type = memProps.memoryTypes[i];
-
-        //skipping flags which require and extension
-        if (!(type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD ||
-              type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD)) {
-            printlog("Allocated!\n");
-            g->memoryHeaps.data[i] = CreateManager(win->mem, i, 0, MIN_HEAP_MEMORY, g);
-        }
-
-        printlog("Type index: %d\n", i);
-        printlog("\theap index: %l\n", type.heapIndex);
-        printlog("\tDevice Local: %d\n", !!(type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
-        printlog("\tHost Visible: %d\n", !!(type.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
-        printlog("\tHost Coherent: %d\n", !!(type.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
-        printlog("\tHost Coherent: %d\n", !!(type.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
-
-    }
-
 }
 
 
 void DestroyVulkan(SEVulkan g, Allocator a) {
     vkDeviceWaitIdle(g.dev);
-    
-    for (u32 i = 0; i < g.memoryHeaps.size; i++) {
-        DestroyManager(&g, g.memoryHeaps.data[i]);
+
+    for (u32 i = 0; i < g.bufAllocators.size; i++) {
+        vkDestroyBuffer(g.dev, g.bufAllocators.data[i].b, NULL);
+        DestroyManager(g.bufAllocators.data[i].m);
     }
-    dynFree(g.memoryHeaps);
+    dynFree(g.bufAllocators);
+    
+    for (u32 i = 0; i < g.memory.heaps.size; i++) {
+        DestroyManager(g.memory.heaps.data[i]);
+        vkFreeMemory(g.dev, g.memory.mem.data[i], NULL);
+    }
+    dynFree(g.memory.heaps);
+    dynFree(g.memory.mem);
+    dynFree(g.memory.types);
+    dynFree(g.memory.props);
 
     for (u32 i = 0; i < g.swapchain.imgcount; i++) {
         vkDestroySemaphore(g.dev, g.imgAvalible.data[i], NULL);

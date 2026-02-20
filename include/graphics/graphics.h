@@ -6,25 +6,30 @@
 
 //TODO(ELI): Replace flags with engine provided types
 //TODO(ELI): Custom logic stuff
-#include "vulkan/vulkan_core.h"
+
+typedef enum SEBufType {
+    SE_BUFFER_VERT,
+    SE_BUFFER_INDEX,
+} SEBufType;
+
+typedef enum SEMemType {
+    SE_MEM_STATIC,
+    SE_MEM_DYNAMIC,
+} SEMemType;
+
 typedef struct SEGraphicsSettings {
-    struct {
-        bool8 set;
-        u64 size;
-    } minMemory;
-
-    struct {
-        bool8 set;
-        VkImageUsageFlagBits* imgflags;
-        u32 num_flags;
-    } minMemoryImg; 
-
-    struct {
-        bool8 set;
-        VkBufferUsageFlagBits* bufflags;
-        u32 num_flags;
-    } minMemoryBuf; 
 } SEGraphicsSettings;
+
+typedef struct MemoryRange {
+    u32 offset;
+    u32 size;
+} MemoryRange;
+
+typedef struct SEBuffer {
+    u32 parent;
+    SEBufType type;
+    MemoryRange r;
+} SEBuffer;
 
 typedef struct SEwindow SEwindow;
 
@@ -38,11 +43,16 @@ typedef void (*SEDrawFunc)(SECmdBuf* p, void* pass);
 
 #define SE_SCREEN 0
 
+SEBuffer AllocBuffer(SEwindow* win, u32 bufID, u64 size);
+u32 SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 size);
+void SEConfigMaxGPUMem(SEwindow* win, SEMemType t, u64 size);
 void DrawTriangle(SECmdBuf* buf, void* pass);
 
 SERenderPipelineInfo* SECreatePipeline(SEwindow* win);
 void SEBeginRenderPass(SERenderPipelineInfo* r);
 void SEEndRenderPass(SERenderPipelineInfo* r);
+
+u32 SEAddVertexBuffer(SERenderPipelineInfo* r, SEBuffer b);
 
 u32 SEAddResource(SERenderPipelineInfo* r, bool8 clear);
 u32 SEAddShader(SEwindow* win, SERenderPipelineInfo* r, SString source);

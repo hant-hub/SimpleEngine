@@ -8,7 +8,7 @@
 void CustomDraw(SECmdBuf* cmd, void* handle) {
     VkBuffer b = 0;
     VkDeviceSize s = 0;
-    vkCmdBindVertexBuffers(cmd->buf, 0, 1, &b, &s);
+    //vkCmdBindVertexBuffers(cmd->buf, 0, 1, &b, &s);
     vkCmdDraw(cmd->buf, 3, 1, 0, 0);
 }
 
@@ -17,6 +17,10 @@ int main() {
     setdirExe();
     InitSE();
     SEwindow* win = CreateWindow(GlobalAllocator, "test");
+    SEConfigMaxGPUMem(win, SE_MEM_DYNAMIC, KB(4));
+    u32 vert_alloc = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_DYNAMIC, KB(1));
+    SEBuffer vertex_buffer = AllocBuffer(win, vert_alloc, sizeof(u32) * 3);
+
 
     SERenderPipelineInfo* r = SECreatePipeline(win);
 
@@ -27,21 +31,7 @@ int main() {
             .type = SE_VAR_TYPE_U32,
             .size = sizeof(u32),
         },
-        (SEStructSpec){
-            .name = sstring("y"),
-            .offset = sizeof(u32),
-            .type = SE_VAR_TYPE_U32,
-            .size = sizeof(u32),
-        },
-        (SEStructSpec){
-            .name = sstring("z"),
-            .offset = sizeof(u32) * 2,
-            .type = SE_VAR_TYPE_U32,
-            .size = sizeof(u32),
-        },
     };
-
-    u32 r1 = SEAddResource(r, TRUE);
 
     u32 vert = SEAddShader(win, r, sstring("../shaders/basic.vert.spv"));
     u32 vert2 = SEAddShader(win, r, sstring("../shaders/basic2.vert.spv"));
@@ -49,8 +39,11 @@ int main() {
     
     u32 layout = SEAddLayout(win, r);
 
+    u32 vertbuf = SEAddVertexBuffer(r, vertex_buffer);
+
     SEBeginRenderPass(r);
 
+    SEReadResource(r, vertbuf);
     AddVertexBinding(r, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
     SEBindShaders(r, vert, frag, layout);
     SEAddDrawFunc(r, CustomDraw);

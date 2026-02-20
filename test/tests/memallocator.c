@@ -12,17 +12,17 @@ int main() {
 
     //TODO(ELI): Change NULL to a real SEVulkan struct when
     //the manager is actually allocating
-    MemoryManager m = CreateManager(GlobalAllocator, 0, 0, MB(2), GetGraphics(win));
+    MemoryManager m = CreateManager(GlobalAllocator, MB(2));
 
     printlog("initial:\n");
     for (u32 i = 0; i < m.freelist.size; i++) {
         printlog("\tRange: %d %d\n", m.freelist.data[i].offset, m.freelist.data[i].size);
     }
 
-    MemoryRange r1 = AllocateDeviceMem(&m, 10);
-    MemoryRange r2 = AllocateDeviceMem(&m, 10);
-    MemoryRange r3 = AllocateDeviceMem(&m, 10);
-    MemoryRange r4 = AllocateDeviceMem(&m, 10);
+    MemoryRange r1 = AllocateDeviceMem(&m, 10, 2);
+    MemoryRange r2 = AllocateDeviceMem(&m, 10, 2);
+    MemoryRange r3 = AllocateDeviceMem(&m, 11, 2);
+    MemoryRange r4 = AllocateDeviceMem(&m, 10, 2);
 
     printlog("after allocating:\n");
     for (u32 i = 0; i < m.freelist.size; i++) {
@@ -57,7 +57,7 @@ int main() {
         printlog("\tRange: %d %d\n", m.freelist.data[i].offset, m.freelist.data[i].size);
     }
 
-    DestroyManager(GetGraphics(win), m);
+    DestroyManager(m);
     DestroyWindow(win);
 
     return 0;

@@ -1,22 +1,58 @@
-#include "ds.h"
-#include "vulkan/vulkan_core.h"
 #include <cutils.h>
+#include <se.h>
 #include <graphics/graphics_intern.h>
 
+void SEConfigMaxGPUMem(SEwindow* win, SEMemType t, u64 size) {
+    SEVulkan* v = GetGraphics(win);
 
-MemoryManager CreateManager(Allocator a, u32 idx, u32 flags, u32 size, SEVulkan* v) {
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(v->pdev, &memProps);
+
+    u32 flags = 0;
+    switch (t) {
+        case SE_MEM_STATIC: 
+            flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+            break;
+        case SE_MEM_DYNAMIC:
+            flags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+            break;
+    }
+
+    for (u32 i = 0; i < memProps.memoryTypeCount; i++) {
+        VkMemoryType type = memProps.memoryTypes[i];
+
+        if (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD) continue;
+        if (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD) continue;
+
+        if ((type.propertyFlags & flags) == flags) {
+            MemoryManager m = CreateManager(win->mem, size);
+
+            VkMemoryAllocateInfo info = {
+                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                .allocationSize = size,
+                .memoryTypeIndex = i,
+            };
+
+            VkDeviceMemory mem;
+            assert(vkAllocateMemory(v->dev, &info, NULL, &mem) == VK_SUCCESS);
+
+            dynPush(v->memory.heaps, m);
+            dynPush(v->memory.types, i);
+            dynPush(v->memory.mem, mem);
+            dynPush(v->memory.props, type.propertyFlags);
+            break;
+        }
+    }
+}
+
+
+MemoryManager CreateManager(Allocator a, u32 size) {
     MemoryManager m = {
         .freelist.a = a,
-        .flags = flags,
     };
     //figure out heap to use
 
-    VkMemoryAllocateInfo info = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = size,
-        .memoryTypeIndex = idx,
-    };
-    assert(vkAllocateMemory(v->dev, &info, NULL, &m.backingmem) == VK_SUCCESS);
 
     MemoryRange r = {
         .offset = 0,
@@ -28,7 +64,7 @@ MemoryManager CreateManager(Allocator a, u32 idx, u32 flags, u32 size, SEVulkan*
     return m;
 }
 
-MemoryRange AllocateDeviceMem(MemoryManager* m, u32 size) {
+MemoryRange AllocateDeviceMem(MemoryManager* m, u32 size, u32 alignment) {
 
     MemoryRange r = {};
 
@@ -37,25 +73,44 @@ MemoryRange AllocateDeviceMem(MemoryManager* m, u32 size) {
     //size = size
 
     //scan freelist for range which is at least as large
+    MemoryRange remainder;
+    u32 idx = 0;
     for (u32 i = 0; i < m->freelist.size; i++) {
-        if (m->freelist.data[i].size < size) {
+        MemoryRange freeRange = {
+            .offset = ((m->freelist.data[i].offset + alignment - 1)/ alignment) * alignment,
+            .size = m->freelist.data[i].size
+        };
+
+        freeRange.size = freeRange.size - (freeRange.offset - m->freelist.data[i].offset);
+
+        remainder = (MemoryRange){
+            .offset = m->freelist.data[i].offset,
+            .size = (freeRange.offset - m->freelist.data[i].offset)
+        };
+        idx = i;
+
+        if (freeRange.size < size) {
             continue;
         }
-        if (m->freelist.data[i].size == size) {
+        if (freeRange.size == size) {
             r = m->freelist.data[i];
             dynDel(m->freelist, i);
             break;
         }
-        if (m->freelist.data[i].size > size) {
-            r = m->freelist.data[i]; 
+        if (freeRange.size > size) {
+            r = freeRange; 
             MemoryRange fragment = {
-                .offset = r.offset + size,
-                .size = r.size - size,
+                .offset = freeRange.offset + size,
+                .size = freeRange.size - size,
             };
             m->freelist.data[i] = fragment;
             r.size = size;
             break;
         }
+    }
+
+    if (remainder.size) {
+        dynIns(m->freelist, idx, remainder);
     }
 
 
@@ -102,9 +157,7 @@ void FreeDeviceMem(MemoryManager* m, MemoryRange r) {
 
 }
 
-void DestroyManager(SEVulkan* v, MemoryManager m) {
+void DestroyManager(MemoryManager m) {
     //deallocate device memory
-
-    vkFreeMemory(v->dev, m.backingmem, NULL);
     dynFree(m.freelist);
 }

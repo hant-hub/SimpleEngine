@@ -1,10 +1,19 @@
 # TODOS:
 
+## Next Time
+- [X] Add Funcs for Allocating Buffers
+- [ ] Extend RenderGraph
+    - [X] Insert Buffer into RenderGraph
+    - [X] Extend SEPass to bind Vertex Buffers
+    - [X] Bind Vertex Buffers
+    - [ ] Map Dynamic Buffers
+    - [ ] Transfer Queue for Static Buffers
+
 ## Quality of Life:
 - [X] Fix all tests printing
-- [ ] Update RenderGraph Code
-    - [ ] Split off Read and Write code
-    - [ ] fix dynArray to be a proper type
+- [X] Update RenderGraph Code
+    - [X] Split off Read and Write code
+    - [X] fix dynArray to be a proper type
 - [ ] Improve Tests
     - [ ] Add asserts to all tests
     - [ ] Redirect logs to file
@@ -55,7 +64,7 @@
     - [ ] Textures
         - [ ] Host Coherent (what you'd use for sand sim)
         - [ ] Transfer Queue
-    - [ ] Integreate with Rendergraph
+    - [ ] Integrate with Rendergraph
 - [ ] Add Uniform analysis
 - [ ] Draw Commands
     - [ ] Raw Draw (no indicies)
