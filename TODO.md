@@ -6,8 +6,16 @@
     - [X] Insert Buffer into RenderGraph
     - [X] Extend SEPass to bind Vertex Buffers
     - [X] Bind Vertex Buffers
-    - [ ] Map Dynamic Buffers
+    - [X] Map Dynamic Buffers
     - [ ] Transfer Queue for Static Buffers
+- [ ] Clean up
+    - [ ] Unmap Dynamic Buffers
+- [ ] Resize Support
+    - [ ] Swapchain Recreation
+    - [ ] Attachment Recreation?
+        - [ ] Attachment registry
+    - [ ] Framebuffer Recreation
+
 
 ## Quality of Life:
 - [X] Fix all tests printing
