@@ -31,6 +31,15 @@ typedef struct SEBuffer {
     MemoryRange r;
 } SEBuffer;
 
+typedef struct SEDynBuf {
+    SEBuffer b;
+    void* mem;
+} SEDynBuf;
+
+typedef struct SEStaticBuf {
+    SEBuffer b;
+} SEStaticBuf;
+
 typedef struct SEwindow SEwindow;
 
 //Rendergraph
@@ -43,10 +52,12 @@ typedef void (*SEDrawFunc)(SECmdBuf* p, void* pass);
 
 #define SE_SCREEN 0
 
-SEBuffer AllocBuffer(SEwindow* win, u32 bufID, u64 size);
 u32 SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 size);
 void SEConfigMaxGPUMem(SEwindow* win, SEMemType t, u64 size);
 void DrawTriangle(SECmdBuf* buf, void* pass);
+
+SEBuffer AllocBuffer(SEwindow* win, u32 bufID, u64 size);
+SEDynBuf MkDynamic(SEwindow* win, SEBuffer b);
 
 SERenderPipelineInfo* SECreatePipeline(SEwindow* win);
 void SEBeginRenderPass(SERenderPipelineInfo* r);

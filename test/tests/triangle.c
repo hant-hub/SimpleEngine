@@ -2,6 +2,8 @@
 #include "cutils.h"
 #include <graphics/graphics_intern.h>
 #include <vulkan/vulkan.h>
+#include <time.h>
+#include <unistd.h>
 
 
 
@@ -20,7 +22,7 @@ int main() {
     SEConfigMaxGPUMem(win, SE_MEM_DYNAMIC, KB(4));
     u32 vert_alloc = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_DYNAMIC, KB(1));
     SEBuffer vertex_buffer = AllocBuffer(win, vert_alloc, sizeof(u32) * 3);
-
+    SEDynBuf vert_handle = MkDynamic(win, vertex_buffer);
 
     SERenderPipelineInfo* r = SECreatePipeline(win);
 
@@ -33,6 +35,10 @@ int main() {
         },
     };
 
+    ((u32*)vert_handle.mem)[0] = 0;
+    ((u32*)vert_handle.mem)[1] = 1;
+    ((u32*)vert_handle.mem)[2] = 2;
+
     u32 vert = SEAddShader(win, r, sstring("../shaders/basic.vert.spv"));
     u32 vert2 = SEAddShader(win, r, sstring("../shaders/basic2.vert.spv"));
     u32 frag = SEAddShader(win, r, sstring("../shaders/basic.frag.spv"));
@@ -44,6 +50,7 @@ int main() {
     SEBeginRenderPass(r);
 
     SEReadResource(r, vertbuf);
+
     AddVertexBinding(r, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
     SEBindShaders(r, vert, frag, layout);
     SEAddDrawFunc(r, CustomDraw);
@@ -68,12 +75,36 @@ int main() {
         
     */
 
-    while (1){
+    u32 counter = 15;
+    double frametime = 1.0;
+    struct timespec start, next;
+    clock_gettime(CLOCK_REALTIME, &start);
+    while (1) {
         Poll(win);
 
         SEDrawPipeline(win, p);
 
         if (win->keystate[KEY_ESC] == KEY_PRESSED) break;
+
+        clock_gettime(CLOCK_REALTIME, &next);
+        double curr_time = (next.tv_sec - start.tv_sec) + ((double)(next.tv_nsec - start.tv_nsec))/(1000 * 1000 * 1000);
+        frametime = 0.1 * frametime + 0.9 * curr_time;
+        start = next;
+
+
+        if (counter == 0) {
+            debuglog("Fps: %f", 1/frametime);
+
+            counter = 30;
+        //    
+        //    ((u32*)vert_handle.mem)[0] = (((u32*)vert_handle.mem)[0] + 1) % 3;
+        //    ((u32*)vert_handle.mem)[1] = (((u32*)vert_handle.mem)[1] + 1) % 3;
+        //    ((u32*)vert_handle.mem)[2] = (((u32*)vert_handle.mem)[2] + 1) % 3;
+        }
+
+        counter--;
+        //usleep(1000 * 1000 * 0.3);
+        
     }
 
     SEDestroyPipeline(win, p);

@@ -422,6 +422,7 @@ SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *r) {
         .vertexBuffers.a = win->mem,
         .indexBuffers.a = win->mem,
         .framebuffers.a = win->mem,
+        .buf.a = win->mem,
     };
 
     PipelineBuildInfo buildInfo = {
@@ -449,12 +450,14 @@ SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *r) {
     // allocate command buffer
     VkCommandBufferAllocateInfo bufinfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandBufferCount = 1,
+        .commandBufferCount = v->swapchain.imgcount,
         .commandPool = v->pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
     };
 
-    vkAllocateCommandBuffers(v->dev, &bufinfo, &p->buf);
+    dynResize(p->buf, v->swapchain.imgcount);
+
+    vkAllocateCommandBuffers(v->dev, &bufinfo, p->buf.data);
     return p;
 }
 
@@ -496,22 +499,29 @@ void SEDestroyPipelineInfo(SEwindow *win, SERenderPipelineInfo *r) {
 void SEDrawPipeline(SEwindow *win, SERenderPipeline *r) {
     SEVulkan *v = GetGraphics(win);
 
+    static u32 counter = 0;
+    static u32 prev = 0;
+    prev = counter;
+    counter = (counter + 1) % v->swapchain.imgcount;
+
     vkWaitForFences(v->dev, 1, &v->inFlight, VK_TRUE, UINT32_MAX);
     vkResetFences(v->dev, 1, &v->inFlight);
 
-    vkResetCommandBuffer(r->buf, 0);
+    vkResetCommandBuffer(r->buf.data[counter], 0);
 
     VkCommandBufferBeginInfo begInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
     };
-    vkBeginCommandBuffer(r->buf, &begInfo);
+    vkBeginCommandBuffer(r->buf.data[counter], &begInfo);
 
-    static u32 counter = 0;
-    counter = (counter + 1) % v->swapchain.imgcount;
 
     u32 idx = 0;
-    assert(vkAcquireNextImageKHR(v->dev, v->swapchain.swap, UINT32_MAX, v->imgAvalible.data[counter], NULL, &idx) ==
-           VK_SUCCESS);
+    VkResult result = vkAcquireNextImageKHR(v->dev, v->swapchain.swap, UINT32_MAX, v->imgAvalible.data[counter], NULL, &idx);
+
+    if (result != VK_SUCCESS) {
+        debuglog("%d", result);
+        panic();
+    }
 
     for (u32 i = 0; i < r->passes.size; i++) {
         SEPass pass = r->passes.data[i];
@@ -531,8 +541,8 @@ void SEDrawPipeline(SEwindow *win, SERenderPipeline *r) {
             .pClearValues = &(VkClearValue){{{0.0f, 0.0f, 0.0f, 1.0f}}},
         };
 
-        vkCmdBeginRenderPass(r->buf, &rbeg, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(r->buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pass.pipe);
+        vkCmdBeginRenderPass(r->buf.data[counter], &rbeg, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(r->buf.data[counter], VK_PIPELINE_BIND_POINT_GRAPHICS, pass.pipe);
 
         VkViewport view = {
             .x = 0.0f,
@@ -542,13 +552,13 @@ void SEDrawPipeline(SEwindow *win, SERenderPipeline *r) {
             .minDepth = 0.0f,
             .maxDepth = 1.0f,
         };
-        vkCmdSetViewport(r->buf, 0, 1, &view);
+        vkCmdSetViewport(r->buf.data[counter], 0, 1, &view);
 
         VkRect2D scissor = {
             .offset = {0.0f, 0.0f},
             .extent = {(float)v->swapchain.width, (float)v->swapchain.height},
         };
-        vkCmdSetScissor(r->buf, 0, 1, &scissor);
+        vkCmdSetScissor(r->buf.data[counter], 0, 1, &scissor);
 
         ScratchArena a = ScratchArenaGet(NULL);
 
@@ -561,15 +571,15 @@ void SEDrawPipeline(SEwindow *win, SERenderPipeline *r) {
             vertexBuffers[i] = v->bufAllocators.data[vert.parent].b;
             offsets[i] = vert.r.offset;
         }
-        vkCmdBindVertexBuffers(r->buf, 0, pass.vertbufs.size, vertexBuffers, offsets);
+        vkCmdBindVertexBuffers(r->buf.data[counter], 0, pass.vertbufs.size, vertexBuffers, offsets);
         ScratchArenaEnd(a);
 
-        pass.func(&(SECmdBuf){r->buf}, &pass);
+        pass.func(&(SECmdBuf){r->buf.data[counter]}, &pass);
 
-        vkCmdEndRenderPass(r->buf);
+        vkCmdEndRenderPass(r->buf.data[counter]);
     }
 
-    vkCmdPipelineBarrier(r->buf,
+    vkCmdPipelineBarrier(r->buf.data[counter],
                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // src stage
                          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,             // dst stage
                          0,                                             // dependence flags
@@ -597,17 +607,17 @@ void SEDrawPipeline(SEwindow *win, SERenderPipeline *r) {
                                  },
                          });
 
-    vkEndCommandBuffer(r->buf);
+    vkEndCommandBuffer(r->buf.data[counter]);
 
     VkPipelineStageFlagBits dstStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo subInfo = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1,
-        .pCommandBuffers = &r->buf,
+        .pCommandBuffers = &r->buf.data[counter],
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &v->imgAvalible.data[counter],
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &v->renderfinished.data[counter],
+        .pSignalSemaphores = &v->renderfinished.data[idx],
         .pWaitDstStageMask = &dstStages,
     };
 
@@ -616,7 +626,7 @@ void SEDrawPipeline(SEwindow *win, SERenderPipeline *r) {
     VkPresentInfoKHR present = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &v->renderfinished.data[counter],
+        .pWaitSemaphores = &v->renderfinished.data[idx],
         .swapchainCount = 1,
         .pSwapchains = &v->swapchain.swap,
         .pImageIndices = &idx,

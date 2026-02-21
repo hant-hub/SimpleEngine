@@ -90,3 +90,16 @@ SEBuffer AllocBuffer(SEwindow* win, u32 bufID, u64 size) {
 
     return out;
 }
+
+SEDynBuf MkDynamic(SEwindow* win, SEBuffer b) {
+    SEVulkan* v = GetGraphics(win);
+
+    SEDynBuf dyn = {
+        .b = b
+    };
+
+    BufferAllocator alloc = v->bufAllocators.data[b.parent];
+    vkMapMemory(v->dev, v->memory.mem.data[alloc.memid], b.r.offset, b.r.size, 0, &dyn.mem);
+
+    return dyn;
+}

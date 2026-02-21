@@ -218,7 +218,7 @@ typedef struct PipelineBarrier {
 
 typedef struct SERenderPipeline {
     Allocator a;
-    VkCommandBuffer buf;
+    dynArray(VkCommandBuffer) buf;
 
     dynArray(PipelineBarrier) barriers;
     dynArray(VkFramebuffer) framebuffers;

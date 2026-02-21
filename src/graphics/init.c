@@ -98,7 +98,7 @@ void CreateSwapChain(SEwindow* win, SEVulkan* g, Allocator a) {
                 g->swapchain.mode = VK_PRESENT_MODE_MAILBOX_KHR;
             }
         }
-        g->swapchain.mode = VK_PRESENT_MODE_FIFO_KHR;
+        //g->swapchain.mode = VK_PRESENT_MODE_FIFO_KHR;
         
         debuglog("Window Dimensions: (%d, %d)", win->width, win->height);
         debuglog("Window Mode: %d", g->swapchain.mode);
