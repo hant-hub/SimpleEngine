@@ -42,7 +42,6 @@ typedef struct BufferAllocator {
     MemoryRange r; //range of memory allocation
     MemoryManager m;
 } BufferAllocator;
-BufferAllocator InitBufferAllocator(SEwindow* w, u32 usage, u32 props, u64 size);
 
 //vulkan
 typedef struct SEVulkan {
@@ -73,12 +72,22 @@ typedef struct SEVulkan {
     dynArray(BufferAllocator) bufAllocators;
 
     struct {
+        VkCommandPool pool;
+        VkCommandBuffer cmd;
+        VkDeviceMemory mem;
+        VkBuffer buf;
+        void* ptr;
+    } transfer;
+
+    struct {
         //Will be the same if
         //same queue supports both operations.
         u32 gfam;
         u32 pfam;
+        u32 tfam;
         VkQueue graphics;
         VkQueue present;
+        VkQueue transfer;
     } queues;
 
     struct {

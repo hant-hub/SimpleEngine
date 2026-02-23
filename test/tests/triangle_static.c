@@ -19,10 +19,17 @@ int main() {
     setdirExe();
     InitSE();
     SEwindow* win = CreateWindow(GlobalAllocator, "test");
-    SEConfigMaxGPUMem(win, SE_MEM_DYNAMIC, KB(4));
-    u32 vert_alloc = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_DYNAMIC, KB(1));
+    SEConfigMaxGPUMem(win, SE_MEM_STATIC, KB(4));
+    u32 vert_alloc = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_STATIC, KB(1));
     SEBuffer vertex_buffer = AllocBuffer(win, vert_alloc, sizeof(u32) * 3);
-    u32* vert_handle = GetHandle(win, vertex_buffer);
+    //u32* vert_handle = GetHandle(win, vertex_buffer);
+    
+    u32 data[][3] = {
+        {0, 1, 2},
+        {2, 0, 1},
+        {1, 2, 0},
+    };
+    CPUtoGPUMemcpy(win, vertex_buffer, data[0], sizeof(data));
 
     SERenderPipelineInfo* r = SECreatePipeline(win);
 
@@ -34,10 +41,6 @@ int main() {
             .size = sizeof(u32),
         },
     };
-
-    vert_handle[0] = 0;
-    vert_handle[1] = 1;
-    vert_handle[2] = 2;
 
     u32 vert = SEAddShader(win, r, sstring("../shaders/basic.vert.spv"));
     u32 vert2 = SEAddShader(win, r, sstring("../shaders/basic2.vert.spv"));
@@ -95,11 +98,11 @@ int main() {
         if (counter <= 0) {
             debuglog("Fps: %f", 1/frametime);
 
-            counter = 1.0/12.0;
+            counter = 1.0/6.0;
+            static u32 i = 0;
+            CPUtoGPUMemcpy(win, vertex_buffer, data[i], sizeof(data));
+            i = (i + 1) % 3;
         //    
-            vert_handle[0] = (vert_handle[0] + 1) % 3;
-            vert_handle[1] = (vert_handle[1] + 1) % 3;
-            vert_handle[2] = (vert_handle[2] + 1) % 3;
         }
 
         counter -= curr_time;
@@ -107,7 +110,6 @@ int main() {
         
     }
 
-    FreeHandle(win, vertex_buffer, vert_handle);
     SEDestroyPipeline(win, p);
     SEDestroyPipelineInfo(win, r);
     DestroyWindow(win);

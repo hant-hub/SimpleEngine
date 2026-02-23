@@ -2,14 +2,14 @@
 
 ## Next Time
 - [X] Add Funcs for Allocating Buffers
-- [ ] Extend RenderGraph
+- [X] Extend RenderGraph
     - [X] Insert Buffer into RenderGraph
     - [X] Extend SEPass to bind Vertex Buffers
     - [X] Bind Vertex Buffers
     - [X] Map Dynamic Buffers
-    - [ ] Transfer Queue for Static Buffers
-- [ ] Clean up
-    - [ ] Unmap Dynamic Buffers
+    - [X] Transfer Queue for Static Buffers
+- [X] Clean up
+    - [X] Unmap Dynamic Buffers
 - [ ] Resize Support
     - [ ] Swapchain Recreation
     - [ ] Attachment Recreation?
@@ -54,7 +54,7 @@
 - [ ] New Resource Allocation
     - [ ] Flags for Memory Types
         - [ ] Textures
-        - [ ] Vertex Buffers
+        - [X] Vertex Buffers
         - [ ] Index Buffers
         - [ ] Render Targets
     - [ ] Memory Management
@@ -62,10 +62,10 @@
         - [ ] alignment calcs
         - [ ] Memory Heap scanning
         - [ ] Alignment and Resource fixing
-    - [ ] Buffers
-        - [ ] Allocate
-        - [ ] Host Coherent
-        - [ ] Transfer Queue (just use pipeline barrier lol)
+    - [X] Buffers
+        - [X] Allocate
+        - [X] Host Coherent
+        - [X] Transfer Queue (just use pipeline barrier lol)
     - [ ] Descriptor Sets
     - [ ] Pipeline Layouts
         - [ ] Store Resource type in RenderGraph

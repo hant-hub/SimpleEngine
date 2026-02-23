@@ -57,7 +57,9 @@ void SEConfigMaxGPUMem(SEwindow* win, SEMemType t, u64 size);
 void DrawTriangle(SECmdBuf* buf, void* pass);
 
 SEBuffer AllocBuffer(SEwindow* win, u32 bufID, u64 size);
-SEDynBuf MkDynamic(SEwindow* win, SEBuffer b);
+void* GetHandle(SEwindow* win, SEBuffer b);
+void FreeHandle(SEwindow* win, SEBuffer b, void* ptr);
+void CPUtoGPUMemcpy(SEwindow* win, SEBuffer dst, void* src, u32 size);
 
 SERenderPipelineInfo* SECreatePipeline(SEwindow* win);
 void SEBeginRenderPass(SERenderPipelineInfo* r);

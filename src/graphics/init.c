@@ -318,57 +318,90 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         VkQueueFamilyProperties* props = StackAlloc(s, familyCount * sizeof(VkQueueFamilyProperties));
         vkGetPhysicalDeviceQueueFamilyProperties(dev, &familyCount, props); 
 
+        debuglog("Num Families: %d", familyCount);
+
         VkBool32 present = VK_FALSE;
         VkBool32 graph = VK_FALSE;
+        VkBool32 transfer = VK_FALSE;
         for (u32 i = 0; i < familyCount; i++) {
-            if (graph && present) break;
+            if (graph && present && transfer) break;
             if (!graph) {
                 if (props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                     g->queues.gfam = i;
                     graph = VK_TRUE;
                 }
             }
-            if (!present) vkGetPhysicalDeviceSurfaceSupportKHR(dev, i, surf, &present);
-            if (present) g->queues.pfam = i;
+            if (!transfer) {
+                if (props[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
+                    g->queues.tfam = i;
+                    if (g->queues.tfam != g->queues.gfam) transfer = VK_TRUE;
+                }
+            }
+            if (!present) {
+                vkGetPhysicalDeviceSurfaceSupportKHR(dev, i, surf, &present);
+                if (present) g->queues.pfam = i;
+            }
         }
         assert(present && graph);
-        debuglog("pfam: %d, gfam: %d", g->queues.pfam, g->queues.gfam);
+        debuglog("pfam: %d, gfam: %d, tfam: %d", g->queues.pfam, g->queues.gfam, g->queues.tfam);
 
         StackDestroy(a, s);
     }
 
     //extract queues
     {
+        bool8 a = g->queues.gfam != g->queues.pfam;
+        bool8 b = g->queues.pfam != g->queues.tfam;
+        bool8 c = g->queues.gfam != g->queues.tfam;
+
+        u32 num_queues = 1 + (a || b || c) + (a && b);
+        u32 idx = 0;
 
         f32 priority = 1.0f;
-        VkDeviceQueueCreateInfo queueInfos[2] = {
-            (VkDeviceQueueCreateInfo){
-               .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-               .queueFamilyIndex = g->queues.gfam,
-               .queueCount = 1,
-               .pQueuePriorities = &priority,
-            },
-            (VkDeviceQueueCreateInfo){
+        ScratchArena sc = ScratchArenaGet(NULL);
+        VkDeviceQueueCreateInfo* queueInfos = ArenaAlloc(&sc.arena, sizeof(VkDeviceQueueCreateInfo) * num_queues);
+
+        queueInfos[idx++] = (VkDeviceQueueCreateInfo){
+            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .queueFamilyIndex = g->queues.gfam,
+            .queueCount = 1,
+            .pQueuePriorities = &priority,
+        };
+
+        if (a) {
+            queueInfos[idx++] = (VkDeviceQueueCreateInfo){
                 .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
                 .queueFamilyIndex = g->queues.pfam,
                 .queueCount = 1,
                 .pQueuePriorities = &priority
-            },
-        };
+            };
+        }
+
+        if (b && c) {
+            queueInfos[idx++] = (VkDeviceQueueCreateInfo){
+                .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                .queueFamilyIndex = g->queues.tfam,
+                .queueCount = 1,
+                .pQueuePriorities = &priority
+            };
+        }
 
         VkDeviceCreateInfo devInfo = {
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-            .queueCreateInfoCount = 1 + (g->queues.gfam != g->queues.pfam),
+            .queueCreateInfoCount = num_queues,
             .pQueueCreateInfos = queueInfos,
             .enabledLayerCount = 0,
             .ppEnabledExtensionNames = ldevExtensions,
             .enabledExtensionCount = ARRAY_SIZE(ldevExtensions),
         };
 
+        debuglog("Queue Num: %d", num_queues);
         vkCreateDevice(g->pdev, &devInfo, NULL, &g->dev);
 
         vkGetDeviceQueue(g->dev, g->queues.gfam, 0, &g->queues.graphics);
-        vkGetDeviceQueue(g->dev, g->queues.pfam, 0 + (g->queues.gfam != g->queues.pfam), &g->queues.present);
+        vkGetDeviceQueue(g->dev, g->queues.pfam, 0, &g->queues.present);
+        vkGetDeviceQueue(g->dev, g->queues.tfam, 0, &g->queues.transfer);
+
     }
 
     //swapchain stuff
@@ -413,11 +446,81 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         printlog("\tsize: %l MB\n", heap.size/MB(1));
         printlog("\tDevice Local: %d\n", !!(heap.flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT));
     }
+
+    //init transfer buffer
+
+    {
+        u32 queues[] = {g->queues.gfam, g->queues.tfam};
+        VkBufferCreateInfo info = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .pQueueFamilyIndices = queues,
+            .queueFamilyIndexCount = 1 + (g->queues.gfam != g->queues.tfam),
+            .sharingMode = (g->queues.gfam == g->queues.tfam) ?
+                            VK_SHARING_MODE_EXCLUSIVE :
+                            VK_SHARING_MODE_CONCURRENT,
+
+            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .size = PAGE_SIZE,
+        };
+
+        vkCreateBuffer(g->dev, &info, NULL, &g->transfer.buf);
+
+        VkMemoryRequirements reqs;
+        vkGetBufferMemoryRequirements(g->dev, g->transfer.buf, &reqs);
+
+        VkPhysicalDeviceMemoryProperties memProps;
+        vkGetPhysicalDeviceMemoryProperties(g->pdev, &memProps);
+
+        u32 memid = 0;
+        u32 flag = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+        for (u32 i = 0; i < memProps.memoryTypeCount; i++) {
+            VkMemoryType type = memProps.memoryTypes[i];
+
+            if (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD) continue;
+            if (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD) continue;
+            if (!(reqs.memoryTypeBits & (1 << i))) continue;
+
+            if ((type.propertyFlags & flag) == flag) {
+                memid = i;
+                break;
+            }
+        }
+        
+        VkMemoryAllocateInfo allocInfo = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .memoryTypeIndex = memid,
+            .allocationSize = reqs.size,
+        };
+
+        vkAllocateMemory(g->dev, &allocInfo, NULL, &g->transfer.mem);
+        vkBindBufferMemory(g->dev, g->transfer.buf, g->transfer.mem, 0);
+        vkMapMemory(g->dev, g->transfer.mem, 0, PAGE_SIZE, 0, &g->transfer.ptr);
+
+
+        VkCommandPoolCreateInfo poolInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .queueFamilyIndex = g->queues.tfam,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+        };
+        vkCreateCommandPool(g->dev, &poolInfo, NULL, &g->transfer.pool);
+        
+        VkCommandBufferAllocateInfo cmdInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = g->transfer.pool,
+            .commandBufferCount = 1,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        };
+        vkAllocateCommandBuffers(g->dev, &cmdInfo, &g->transfer.cmd);
+    }
 }
 
 
 void DestroyVulkan(SEVulkan g, Allocator a) {
     vkDeviceWaitIdle(g.dev);
+
+    vkDestroyBuffer(g.dev, g.transfer.buf, NULL);
+    vkFreeMemory(g.dev, g.transfer.mem, NULL);
 
     for (u32 i = 0; i < g.bufAllocators.size; i++) {
         vkDestroyBuffer(g.dev, g.bufAllocators.data[i].b, NULL);
@@ -458,6 +561,7 @@ void DestroyVulkan(SEVulkan g, Allocator a) {
     PipelinePoolDestroy(&g.resources.pipelines);
 
     vkDestroyCommandPool(g.dev, g.pool, NULL);
+    vkDestroyCommandPool(g.dev, g.transfer.pool, NULL);
 
     for (u32 i = 0; i < g.swapchain.imgcount; i++) {
         vkDestroyImageView(g.dev, g.swapchain.views[i], NULL);
