@@ -4,7 +4,7 @@
 
 int main() {
     InitSE();
-    SEwindow* win = CreateWindow(GlobalAllocator, "test");
+    SEwindow* win = CreateWindow(GlobalAllocator, "test", NULL);
     while (1){
         Poll(win);
 

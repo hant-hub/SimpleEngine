@@ -2,6 +2,7 @@
 #define SE_GRAPHICS_INTERN_H
 
 #include "cutils.h"
+#include "se.h"
 #include "ds.h"
 #include "vulkan/vk_platform.h"
 #include "vulkan/vulkan_core.h"
@@ -42,6 +43,17 @@ typedef struct BufferAllocator {
     MemoryRange r; //range of memory allocation
     MemoryManager m;
 } BufferAllocator;
+BufferAllocator InitBufferAllocator(SEwindow* w, VkBufferCreateInfo info, u32 props);
+BufferAllocator SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 size);
+SEBuffer AllocBuffer(SEwindow* win, BufferAllocator* allocator, u32 bufID, u64 size);
+
+typedef struct ImageAllocator {
+    VkImage b;
+    u32 memid;
+    u64 alignment;
+    MemoryRange r; //range of memory allocation
+    MemoryManager m;
+} ImageAllocator;
 
 //vulkan
 typedef struct SEVulkan {
@@ -69,7 +81,7 @@ typedef struct SEVulkan {
         dynArray(VkMemoryPropertyFlags) props;
     } memory;
 
-    dynArray(BufferAllocator) bufAllocators;
+    //dynArray(BufferAllocator) bufAllocators;
 
     struct {
         VkCommandPool pool;
@@ -116,6 +128,8 @@ typedef struct SEVulkan {
     #endif
 } SEVulkan;
 
+void SEConfigMaxGPUMem(SEwindow* win, SEMemType t, u64 size);
+
 //Rendergraph data
 typedef struct SEAttachmentInfo {
     VkFormat f;
@@ -132,6 +146,7 @@ typedef enum ResourceUsage {
 
 typedef enum ResourceType {
     RESOURCE_COLOR_ATTACHMENT = 0,
+    RESOURCE_TEXTURE,
     RESOURCE_VERTEX_BUFFER,
 } ResourceType;
 
@@ -145,14 +160,17 @@ typedef struct Resource {
     u32 idx;
     union {
         VkImageView view;
-        SEBuffer buffer;
+        u32 bufIdx;
     } vk;
 
     bool8 clear;
     bool8 swapchain;
 } Resource;
 
-
+typedef struct BufferInfo {
+    SEMemType memType;
+    u32 size;
+} BufferInfo;
 
 //structure to store graph before object creation
 typedef struct SERenderPassInfo {
@@ -189,6 +207,8 @@ typedef struct SERenderPipelineInfo {
     dynArray(u32) writes;
     dynArray(u32) reads;
     dynArray(Resource) resources;
+    dynArray(BufferInfo) vertBufInfo;
+    dynArray(BufferInfo) indexBufInfo;
 } SERenderPipelineInfo;
 
 typedef struct SECmdBuf {
@@ -231,8 +251,12 @@ typedef struct SERenderPipeline {
 
     dynArray(PipelineBarrier) barriers;
     dynArray(VkFramebuffer) framebuffers;
+
+    dynArray(BufferAllocator) bufAllocators;
+
     dynArray(SEBuffer) vertexBuffers;
     dynArray(SEBuffer) indexBuffers;
+
     dynArray(SEPass) passes;
 } SERenderPipeline;
 
@@ -262,7 +286,7 @@ void DestroyManager(MemoryManager m);
 
 void LoadExtensionFuncs(VkInstance instance);
 
-void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g);
+void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g, SEsettings* s);
 void DestroyVulkan(SEVulkan g, Allocator a);
 
 //helpers

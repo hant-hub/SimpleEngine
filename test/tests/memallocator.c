@@ -8,7 +8,7 @@
 int main() {
     setdirExe();
     InitSE();
-    SEwindow* win = CreateWindow(GlobalAllocator, "test");
+    SEwindow* win = CreateWindow(GlobalAllocator, "test", NULL);
 
     //TODO(ELI): Change NULL to a real SEVulkan struct when
     //the manager is actually allocating

@@ -18,13 +18,10 @@ void CustomDraw(SECmdBuf* cmd, void* handle) {
 int main() {
     setdirExe();
     InitSE();
-    SEwindow* win = CreateWindow(GlobalAllocator, "test");
-    SEConfigMaxGPUMem(win, SE_MEM_DYNAMIC, KB(4));
-    u32 vert_alloc = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_DYNAMIC, KB(1));
-    SEBuffer vertex_buffer = AllocBuffer(win, vert_alloc, sizeof(u32) * 3);
-    u32* vert_handle = GetHandle(win, vertex_buffer);
+    SEwindow* win = CreateWindow(GlobalAllocator, "test", NULL);
 
     SERenderPipelineInfo* r = SECreatePipeline(win);
+
 
     SEStructSpec vertSpec[] = {
         (SEStructSpec){
@@ -35,9 +32,6 @@ int main() {
         },
     };
 
-    vert_handle[0] = 0;
-    vert_handle[1] = 1;
-    vert_handle[2] = 2;
 
     u32 vert = SEAddShader(win, r, sstring("../shaders/basic.vert.spv"));
     u32 vert2 = SEAddShader(win, r, sstring("../shaders/basic2.vert.spv"));
@@ -45,8 +39,7 @@ int main() {
     
     u32 layout = SEAddLayout(win, r);
 
-    u32 vertbuf = SEAddVertexBuffer(r, vertex_buffer);
-
+    u32 vertbuf = SEAddVertexBuffer(r, SE_MEM_DYNAMIC, sizeof(u32) * 3);
     SEBeginRenderPass(r);
 
     SEReadResource(r, vertbuf);
@@ -96,10 +89,9 @@ int main() {
             debuglog("Fps: %f", 1/frametime);
 
             counter = 1.0/12.0;
-        //    
-            vert_handle[0] = (vert_handle[0] + 1) % 3;
-            vert_handle[1] = (vert_handle[1] + 1) % 3;
-            vert_handle[2] = (vert_handle[2] + 1) % 3;
+            //vert_handle[0] = (vert_handle[0] + 1) % 3;
+            //vert_handle[1] = (vert_handle[1] + 1) % 3;
+            //vert_handle[2] = (vert_handle[2] + 1) % 3;
         }
 
         counter -= curr_time;
@@ -107,7 +99,7 @@ int main() {
         
     }
 
-    FreeHandle(win, vertex_buffer, vert_handle);
+    //FreeHandle(win, vertex_buffer, vert_handle);
     SEDestroyPipeline(win, p);
     SEDestroyPipelineInfo(win, r);
     DestroyWindow(win);

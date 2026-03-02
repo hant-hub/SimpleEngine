@@ -13,7 +13,7 @@
 
 #include <unistd.h>
 
-SEwindow *CreateWindow(Allocator a, const char *windowname) {
+SEwindow *CreateWindow(Allocator a, const char *windowname, SEsettings* settings) {
     SEX11Window *win = Alloc(a, sizeof(SEX11Window));
 
     *win = (SEX11Window){
@@ -97,7 +97,7 @@ SEwindow *CreateWindow(Allocator a, const char *windowname) {
     };
 
     vkCreateXlibSurfaceKHR(g->inst, &surfInfo, NULL, &g->surf);
-    CreateVulkan(g->inst, g->surf, (SEwindow *)win, &win->graphics);
+    CreateVulkan(g->inst, g->surf, (SEwindow *)win, &win->graphics, settings);
 
     return (SEwindow *)win;
 }

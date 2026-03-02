@@ -12,6 +12,11 @@ typedef enum SEBufType {
     SE_BUFFER_INDEX,
 } SEBufType;
 
+typedef enum SEImgFormat {
+    SE_IMG_RGB_F32,
+    SE_IMG_RGB_I8,
+} SEImgFormat;
+
 typedef enum SEMemType {
     SE_MEM_STATIC,
     SE_MEM_DYNAMIC,
@@ -30,6 +35,12 @@ typedef struct SEBuffer {
     SEBufType type;
     MemoryRange r;
 } SEBuffer;
+
+typedef struct SEImage {
+    u32 parent;
+    SEImgFormat format;
+    MemoryRange r;
+} SEImage;
 
 typedef struct SEDynBuf {
     SEBuffer b;
@@ -52,20 +63,17 @@ typedef void (*SEDrawFunc)(SECmdBuf* p, void* pass);
 
 #define SE_SCREEN 0
 
-u32 SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 size);
-void SEConfigMaxGPUMem(SEwindow* win, SEMemType t, u64 size);
 void DrawTriangle(SECmdBuf* buf, void* pass);
 
-SEBuffer AllocBuffer(SEwindow* win, u32 bufID, u64 size);
 void* GetHandle(SEwindow* win, SEBuffer b);
 void FreeHandle(SEwindow* win, SEBuffer b, void* ptr);
-void CPUtoGPUMemcpy(SEwindow* win, SEBuffer dst, void* src, u32 size);
+void CPUtoGPUBufferMemcpy(SEwindow* win, SEBuffer dst, void* src, u32 size);
 
 SERenderPipelineInfo* SECreatePipeline(SEwindow* win);
 void SEBeginRenderPass(SERenderPipelineInfo* r);
 void SEEndRenderPass(SERenderPipelineInfo* r);
 
-u32 SEAddVertexBuffer(SERenderPipelineInfo* r, SEBuffer b);
+u32 SEAddVertexBuffer(SERenderPipelineInfo* r, SEMemType type, u32 size);
 
 u32 SEAddResource(SERenderPipelineInfo* r, bool8 clear);
 u32 SEAddShader(SEwindow* win, SERenderPipelineInfo* r, SString source);

@@ -11,10 +11,10 @@ struct vert {
 int main() {
     setdirExe();
     InitSE();
-    SEwindow* win = CreateWindow(GlobalAllocator, "test");
-    SEConfigMaxGPUMem(win, SE_MEM_DYNAMIC, MB(2));
-    u32 staticBufs = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_DYNAMIC, MB(1));
-    SEBuffer buf = AllocBuffer(win, staticBufs, sizeof(vert) * 3);
+    SEwindow* win = CreateWindow(GlobalAllocator, "test", NULL);
+    //SEConfigMaxGPUMem(win, SE_MEM_DYNAMIC, MB(2));
+    //u32 staticBufs = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_DYNAMIC, MB(1));
+    //SEBuffer buf = AllocBuffer(win, staticBufs, sizeof(vert) * 3);
 
     
 

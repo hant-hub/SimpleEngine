@@ -249,7 +249,7 @@ u32 PhysicalDeviceScore(VkPhysicalDevice p, VkSurfaceKHR surf, SwapChainInfo* de
 
 
 //Platform agnostic vulkan code
-void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g) {
+void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g, SEsettings* settings) {
     //We can pass inst as a value since it is technically a
     //pointer so passing it by pointer would be a double indirection and
     //save no space
@@ -267,7 +267,6 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
     g->memory.mem.a = a;
     g->memory.types.a = a;
     g->memory.props.a = a;
-    g->bufAllocators.a = a;
 
     VkDebugUtilsMessengerCreateInfoEXT messengerInfo = {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -513,6 +512,29 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         };
         vkAllocateCommandBuffers(g->dev, &cmdInfo, &g->transfer.cmd);
     }
+
+    //handle settings
+    {
+        //default settings
+        SEsettings s = {};
+        if (settings) {
+            s = *settings;
+        }
+
+        //default memory
+        if (s.memory.max_static_mem == 0) {
+            s.memory.max_static_mem = MB(2);
+        }
+
+        if (s.memory.max_dynamic_mem == 0) {
+            s.memory.max_dynamic_mem = MB(2);
+        }
+
+        //TODO(ELI): default size stuff later
+        SEConfigMaxGPUMem(win, SE_MEM_STATIC, s.memory.max_static_mem);
+        SEConfigMaxGPUMem(win, SE_MEM_DYNAMIC, s.memory.max_dynamic_mem);
+    }
+
 }
 
 
@@ -522,11 +544,11 @@ void DestroyVulkan(SEVulkan g, Allocator a) {
     vkDestroyBuffer(g.dev, g.transfer.buf, NULL);
     vkFreeMemory(g.dev, g.transfer.mem, NULL);
 
-    for (u32 i = 0; i < g.bufAllocators.size; i++) {
-        vkDestroyBuffer(g.dev, g.bufAllocators.data[i].b, NULL);
-        DestroyManager(g.bufAllocators.data[i].m);
-    }
-    dynFree(g.bufAllocators);
+    //for (u32 i = 0; i < g.bufAllocators.size; i++) {
+    //    vkDestroyBuffer(g.dev, g.bufAllocators.data[i].b, NULL);
+    //    DestroyManager(g.bufAllocators.data[i].m);
+    //}
+    //dynFree(g.bufAllocators);
     
     for (u32 i = 0; i < g.memory.heaps.size; i++) {
         DestroyManager(g.memory.heaps.data[i]);

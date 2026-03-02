@@ -10,7 +10,33 @@
     - [X] Transfer Queue for Static Buffers
 - [X] Clean up
     - [X] Unmap Dynamic Buffers
+- [ ] Move Buffers into RenderGraph
+    - [X] Remove Allocations from SEVulkan
+        - [X] Remove BufAllocators
+        - [X] SEsettings
+        - [X] ConfigMaxGPU Mem
+    - [X] Fix Allocation Funcs
+        - [X] Remove Config Buf Allocator
+        - [X] Fix Alloc Buffer to use Rendergraph
+    - [X] Rendergraph allocate
+        - [X] Move allocations into RenderGraph
+        - [X] Change Allocate Buffer to use RenderGraph
+        - [X] Move ConfigMaxGPU Mem into init
+    - [ ] Buffer Allocate
+        - [X] Step to Allocate Memory
+        - [X] Create Resource
+        - [ ] Retrieve Buffer
+            - Mapping buffer? array to convert resource id to buffer handle
+            - Inverse Buffer, custom write resource to convert buffer idx to resource?
+            - i don't fuckin know man, something?
 - [ ] Resize Support
+    - [ ] Rework Attachments
+        - [ ] Allocators for images
+        - [ ] Attachment Description (size, format, etc)
+        - [ ] FrameBuffer Description (which attachments)
+        - [ ] Change Graph to blit to swapchain
+            - [ ] Mark Back Buffer
+            - [ ] Future Prune unused passes
     - [ ] Swapchain Recreation
     - [ ] Attachment Recreation?
         - [ ] Attachment registry

@@ -2,7 +2,7 @@
 #include <se_intern.h>
 
 BufferAllocator InitBufferAllocator(SEwindow* w, VkBufferCreateInfo info, u32 props);
-u32 SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 size) {
+BufferAllocator SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 size) {
     SEVulkan* v = GetGraphics(w);
     u32 props = 0;
     u32 queues[] = {v->queues.gfam, v->queues.tfam};
@@ -44,8 +44,7 @@ u32 SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 size) {
 
 
     BufferAllocator a = InitBufferAllocator(w, info, props);
-    dynPush(v->bufAllocators, a);
-    return v->bufAllocators.size - 1;
+    return a;
 }
 
 BufferAllocator InitBufferAllocator(SEwindow* w, VkBufferCreateInfo info, u32 props) {
@@ -83,10 +82,9 @@ BufferAllocator InitBufferAllocator(SEwindow* w, VkBufferCreateInfo info, u32 pr
     return (BufferAllocator){0};
 }
 
-SEBuffer AllocBuffer(SEwindow* win, u32 bufID, u64 size) {
+SEBuffer AllocBuffer(SEwindow* win, BufferAllocator* allocator, u32 bufID, u64 size) {
     SEVulkan* v = GetGraphics(win);
 
-    BufferAllocator* allocator = &v->bufAllocators.data[bufID];
     SEBuffer out = {
         .parent = bufID,
         .r = AllocateDeviceMem(&allocator->m, size, allocator->alignment)
@@ -100,20 +98,19 @@ SEBuffer AllocBuffer(SEwindow* win, u32 bufID, u64 size) {
     return out;
 }
 
-void* GetHandle(SEwindow* win, SEBuffer b) {
-    SEVulkan* v = GetGraphics(win);
-
-
-    void* ptr;
-    BufferAllocator alloc = v->bufAllocators.data[b.parent];
-    vkMapMemory(v->dev, v->memory.mem.data[alloc.memid], b.r.offset, b.r.size, 0, &ptr);
-
-    return ptr;
-}
-
-void FreeHandle(SEwindow* win, SEBuffer b, void* ptr) {
-    SEVulkan* v = GetGraphics(win);
-
-    BufferAllocator alloc = v->bufAllocators.data[b.parent];
-    vkUnmapMemory(v->dev, v->memory.mem.data[alloc.memid]);
-}
+//void* GetHandle(SEwindow* win, SEBuffer b) {
+//    SEVulkan* v = GetGraphics(win);
+//
+//    void* ptr;
+//    BufferAllocator alloc = v->bufAllocators.data[b.parent];
+//    vkMapMemory(v->dev, v->memory.mem.data[alloc.memid], b.r.offset, b.r.size, 0, &ptr);
+//
+//    return ptr;
+//}
+//
+//void FreeHandle(SEwindow* win, SEBuffer b, void* ptr) {
+//    SEVulkan* v = GetGraphics(win);
+//
+//    BufferAllocator alloc = v->bufAllocators.data[b.parent];
+//    vkUnmapMemory(v->dev, v->memory.mem.data[alloc.memid]);
+//}

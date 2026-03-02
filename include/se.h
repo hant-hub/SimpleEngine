@@ -76,6 +76,18 @@ typedef enum KeyState {
     KEY_PRESSED,
 } KeyState;
 
+typedef struct SEsettings {
+    struct {
+        u32 max_static_mem;
+        u32 max_dynamic_mem;
+    } memory;
+
+    struct {
+        u32 width;
+        u32 height;
+    } size;
+} SEsettings;
+
 // should always be accessed via pointer
 typedef struct SEwindow {
     Allocator mem;
@@ -85,8 +97,9 @@ typedef struct SEwindow {
     KeyState keystate[NUM_KEYS];
 } SEwindow;
 
+
 void InitSE();
-SEwindow *CreateWindow(Allocator a, const char *windowname);
+SEwindow *CreateWindow(Allocator a, const char *windowname, SEsettings* settings);
 void Poll(SEwindow *handle);
 void DestroyWindow(SEwindow *win);
 SEVulkan *GetGraphics(SEwindow *win);

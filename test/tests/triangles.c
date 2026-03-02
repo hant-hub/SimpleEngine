@@ -18,7 +18,7 @@ void temp(SECmdBuf* p, void* pass) {
 int main() {
     setdirExe();
     InitSE();
-    SEwindow* win = CreateWindow(GlobalAllocator, "test");
+    SEwindow* win = CreateWindow(GlobalAllocator, "test", NULL);
 
     SERenderPipelineInfo* r = SECreatePipeline(win);
 

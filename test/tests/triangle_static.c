@@ -18,10 +18,10 @@ void CustomDraw(SECmdBuf* cmd, void* handle) {
 int main() {
     setdirExe();
     InitSE();
-    SEwindow* win = CreateWindow(GlobalAllocator, "test");
+    SEwindow* win = CreateWindow(GlobalAllocator, "test", NULL);
     SEConfigMaxGPUMem(win, SE_MEM_STATIC, KB(4));
-    u32 vert_alloc = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_STATIC, KB(1));
-    SEBuffer vertex_buffer = AllocBuffer(win, vert_alloc, sizeof(u32) * 3);
+    //u32 vert_alloc = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_STATIC, KB(1));
+    //SEBuffer vertex_buffer = AllocBuffer(win, vert_alloc, sizeof(u32) * 3);
     //u32* vert_handle = GetHandle(win, vertex_buffer);
     
     u32 data[][3] = {
@@ -29,7 +29,7 @@ int main() {
         {2, 0, 1},
         {1, 2, 0},
     };
-    CPUtoGPUMemcpy(win, vertex_buffer, data[0], sizeof(data));
+    //CPUtoGPUBufferMemcpy(win, vertex_buffer, data[0], sizeof(data));
 
     SERenderPipelineInfo* r = SECreatePipeline(win);
 
@@ -48,11 +48,11 @@ int main() {
     
     u32 layout = SEAddLayout(win, r);
 
-    u32 vertbuf = SEAddVertexBuffer(r, vertex_buffer);
+    //u32 vertbuf = SEAddVertexBuffer(r, vertex_buffer);
 
     SEBeginRenderPass(r);
 
-    SEReadResource(r, vertbuf);
+    //SEReadResource(r, vertbuf);
 
     AddVertexBinding(r, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
     SEBindShaders(r, vert, frag, layout);
@@ -100,7 +100,7 @@ int main() {
 
             counter = 1.0/6.0;
             static u32 i = 0;
-            CPUtoGPUMemcpy(win, vertex_buffer, data[i], sizeof(data));
+            //CPUtoGPUBufferMemcpy(win, vertex_buffer, data[i], sizeof(data));
             i = (i + 1) % 3;
         //    
         }
