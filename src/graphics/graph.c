@@ -434,6 +434,7 @@ SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *r) {
         .framebuffers.a = win->mem,
         .buf.a = win->mem,
         .bufAllocators.a = win->mem,
+        .resourceMaps.a = win->mem,
     };
 
     PipelineBuildInfo buildInfo = {
@@ -544,6 +545,9 @@ SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *r) {
         }
     }
 
+    //copy resources
+    dynExt(p->resourceMaps, r->resources.data, r->resources.size);
+
     return p;
 }
 
@@ -591,6 +595,66 @@ void SEDestroyPipelineInfo(SEwindow *win, SERenderPipelineInfo *r) {
     dynFree(r->vertBufInfo);
     dynFree(r->indexBufInfo);
     Free(r->a, r, sizeof(SERenderPipelineInfo));
+}
+
+void* SEMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID) {
+    SEVulkan *v = GetGraphics(win);
+
+    u32 id = r->resourceMaps.data[resourceID].vk.bufIdx;
+    SEBuffer b = r->vertexBuffers.data[id];
+    u32 memid = r->bufAllocators.data[b.parent].memid;
+
+    void* ptr;
+    VkResult result = vkMapMemory(v->dev, v->memory.mem.data[memid], b.r.offset, b.r.size, 0, &ptr);
+    if (result != VK_SUCCESS) return NULL;
+    return ptr;
+}
+
+void SEUnMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID) {
+    SEVulkan *v = GetGraphics(win);
+    //Nothin for now
+}
+
+#include <string.h>
+
+void SEUploadBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* src, u32 size) {
+    SEVulkan* v = GetGraphics(win);
+
+    u32 id = r->resourceMaps.data[resourceID].vk.bufIdx;
+    SEBuffer dst = r->vertexBuffers.data[id];
+
+    u32 remaining = size;
+    BufferAllocator alloc = r->bufAllocators.data[dst.parent];
+    while (remaining) {
+        u32 num_bytes = MIN(PAGE_SIZE, remaining);
+        memcpy(v->transfer.ptr, src + (size - remaining), num_bytes); 
+        
+        VkCommandBufferBeginInfo info = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        };
+        vkQueueWaitIdle(v->queues.transfer);
+
+        vkResetCommandBuffer(v->transfer.cmd, 0);
+        vkBeginCommandBuffer(v->transfer.cmd, &info);
+        VkBufferCopy cpy = {
+            .size = num_bytes,
+            .srcOffset = 0,
+            .dstOffset = dst.r.offset + (size - remaining)
+        };
+        vkCmdCopyBuffer(v->transfer.cmd, v->transfer.buf, alloc.b, 1, &cpy);
+        vkEndCommandBuffer(v->transfer.cmd);
+
+        VkSubmitInfo submit = {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &v->transfer.cmd,
+        };
+        vkQueueSubmit(v->queues.transfer, 1, &submit, VK_NULL_HANDLE);
+
+        remaining -= num_bytes;
+    }
+
+
 }
 
 void SEDrawPipeline(SEwindow *win, SERenderPipeline *r) {

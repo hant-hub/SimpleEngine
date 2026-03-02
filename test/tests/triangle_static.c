@@ -48,11 +48,11 @@ int main() {
     
     u32 layout = SEAddLayout(win, r);
 
-    //u32 vertbuf = SEAddVertexBuffer(r, vertex_buffer);
+    u32 vertbuf = SEAddVertexBuffer(r, SE_MEM_STATIC, sizeof(u32) * 3);
 
     SEBeginRenderPass(r);
 
-    //SEReadResource(r, vertbuf);
+    SEReadResource(r, vertbuf);
 
     AddVertexBinding(r, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
     SEBindShaders(r, vert, frag, layout);
@@ -101,6 +101,7 @@ int main() {
             counter = 1.0/6.0;
             static u32 i = 0;
             //CPUtoGPUBufferMemcpy(win, vertex_buffer, data[i], sizeof(data));
+            SEUploadBuffer(win, p, vertbuf, data[i], sizeof(data[0]));
             i = (i + 1) % 3;
         //    
         }

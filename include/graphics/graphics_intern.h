@@ -31,10 +31,11 @@ typedef struct MemoryManager {
     dynArray(MemoryRange) freelist;
 } MemoryManager;
 
-typedef struct Attachment {
-    VkImageView view;
-    bool8 pending;
-} Attachment;
+typedef struct SEBuffer {
+    u32 parent;
+    SEBufType type;
+    MemoryRange r;
+} SEBuffer;
 
 typedef struct BufferAllocator {
     VkBuffer b;
@@ -47,13 +48,16 @@ BufferAllocator InitBufferAllocator(SEwindow* w, VkBufferCreateInfo info, u32 pr
 BufferAllocator SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 size);
 SEBuffer AllocBuffer(SEwindow* win, BufferAllocator* allocator, u32 bufID, u64 size);
 
-typedef struct ImageAllocator {
-    VkImage b;
+typedef struct SEImage {
+    VkImage img;
+    VkImageView view;
+    MemoryRange r;
+    VkFormat format;
+    VkImageLayout layout;
     u32 memid;
-    u64 alignment;
-    MemoryRange r; //range of memory allocation
-    MemoryManager m;
-} ImageAllocator;
+    u32 width, height;
+} SEImage;
+
 
 //vulkan
 typedef struct SEVulkan {
@@ -247,6 +251,8 @@ typedef struct PipelineBarrier {
 
 typedef struct SERenderPipeline {
     Allocator a;
+
+    dynArray(Resource) resourceMaps;
     dynArray(VkCommandBuffer) buf;
 
     dynArray(PipelineBarrier) barriers;

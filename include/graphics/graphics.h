@@ -12,11 +12,6 @@ typedef enum SEBufType {
     SE_BUFFER_INDEX,
 } SEBufType;
 
-typedef enum SEImgFormat {
-    SE_IMG_RGB_F32,
-    SE_IMG_RGB_I8,
-} SEImgFormat;
-
 typedef enum SEMemType {
     SE_MEM_STATIC,
     SE_MEM_DYNAMIC,
@@ -29,27 +24,6 @@ typedef struct MemoryRange {
     u32 offset;
     u32 size;
 } MemoryRange;
-
-typedef struct SEBuffer {
-    u32 parent;
-    SEBufType type;
-    MemoryRange r;
-} SEBuffer;
-
-typedef struct SEImage {
-    u32 parent;
-    SEImgFormat format;
-    MemoryRange r;
-} SEImage;
-
-typedef struct SEDynBuf {
-    SEBuffer b;
-    void* mem;
-} SEDynBuf;
-
-typedef struct SEStaticBuf {
-    SEBuffer b;
-} SEStaticBuf;
 
 typedef struct SEwindow SEwindow;
 
@@ -64,10 +38,6 @@ typedef void (*SEDrawFunc)(SECmdBuf* p, void* pass);
 #define SE_SCREEN 0
 
 void DrawTriangle(SECmdBuf* buf, void* pass);
-
-void* GetHandle(SEwindow* win, SEBuffer b);
-void FreeHandle(SEwindow* win, SEBuffer b, void* ptr);
-void CPUtoGPUBufferMemcpy(SEwindow* win, SEBuffer dst, void* src, u32 size);
 
 SERenderPipelineInfo* SECreatePipeline(SEwindow* win);
 void SEBeginRenderPass(SERenderPipelineInfo* r);
@@ -91,6 +61,10 @@ SERenderPipeline* SECompilePipeline(SEwindow* win, SERenderPipelineInfo* r);
 void SEDestroyPipeline(SEwindow* win, SERenderPipeline* r);
 void SEDestroyPipelineInfo(SEwindow* win, SERenderPipelineInfo* r);
 
+void* SEMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID);
+void SEUnMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID);
+
+void SEUploadBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* data, u32 size);
 void SEDrawPipeline(SEwindow* win, SERenderPipeline* r);
 
 //descriptors

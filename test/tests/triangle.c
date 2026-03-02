@@ -39,7 +39,7 @@ int main() {
     
     u32 layout = SEAddLayout(win, r);
 
-    u32 vertbuf = SEAddVertexBuffer(r, SE_MEM_DYNAMIC, sizeof(u32) * 3);
+    u32 vertbuf = SEAddVertexBuffer(r, SE_MEM_STATIC, sizeof(u32) * 3);
     SEBeginRenderPass(r);
 
     SEReadResource(r, vertbuf);
@@ -53,6 +53,11 @@ int main() {
     SEEndRenderPass(r);
 
     SERenderPipeline* p = SECompilePipeline(win, r);
+    u32* vert_handle = SEMapVertBuffer(win, p, vertbuf);
+    assert(vert_handle);
+    vert_handle[0] = 0;
+    vert_handle[1] = 1;
+    vert_handle[2] = 2;
 
 
     /*
@@ -89,9 +94,9 @@ int main() {
             debuglog("Fps: %f", 1/frametime);
 
             counter = 1.0/12.0;
-            //vert_handle[0] = (vert_handle[0] + 1) % 3;
-            //vert_handle[1] = (vert_handle[1] + 1) % 3;
-            //vert_handle[2] = (vert_handle[2] + 1) % 3;
+            vert_handle[0] = (vert_handle[0] + 1) % 3;
+            vert_handle[1] = (vert_handle[1] + 1) % 3;
+            vert_handle[2] = (vert_handle[2] + 1) % 3;
         }
 
         counter -= curr_time;

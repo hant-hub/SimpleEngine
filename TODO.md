@@ -10,7 +10,7 @@
     - [X] Transfer Queue for Static Buffers
 - [X] Clean up
     - [X] Unmap Dynamic Buffers
-- [ ] Move Buffers into RenderGraph
+- [X] Move Buffers into RenderGraph
     - [X] Remove Allocations from SEVulkan
         - [X] Remove BufAllocators
         - [X] SEsettings
@@ -22,13 +22,14 @@
         - [X] Move allocations into RenderGraph
         - [X] Change Allocate Buffer to use RenderGraph
         - [X] Move ConfigMaxGPU Mem into init
-    - [ ] Buffer Allocate
+    - [X] Buffer Allocate
         - [X] Step to Allocate Memory
         - [X] Create Resource
-        - [ ] Retrieve Buffer
-            - Mapping buffer? array to convert resource id to buffer handle
-            - Inverse Buffer, custom write resource to convert buffer idx to resource?
-            - i don't fuckin know man, something?
+        - [X] Retrieve Buffer
+            - [X] Dynamic Void*
+            - [X] Static Upload
+- [ ] Fix Internal Api
+    - [ ] Convert Internal graphics API to use SEVulkan instead of SEwindow
 - [ ] Resize Support
     - [ ] Rework Attachments
         - [ ] Allocators for images
