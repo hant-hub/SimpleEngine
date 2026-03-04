@@ -4,6 +4,17 @@
 #include "vulkan/vulkan_core.h"
 #include <graphics/graphics_intern.h>
 
+//INFO(ELI):
+/*
+
+    Basically the plan is to create an attachment
+    and mark it as the backbuffer.
+
+    Then at the end we do a vkCmdImgBlit to copy
+    the backbuffer to the swapchain.
+
+*/
+
 SERenderPipelineInfo *SECreatePipeline(SEwindow *win) {
     SEVulkan *v = GetGraphics(win);
 
@@ -21,16 +32,6 @@ SERenderPipelineInfo *SECreatePipeline(SEwindow *win) {
         .vertBufInfo.a = win->mem,
         .indexBufInfo.a = win->mem,
     };
-
-    for (u32 i = 0; i < v->swapchain.imgcount; i++) {
-        dynPush(r->resources, ((Resource){
-                                  .lastUsage = RESOURCE_UNINITIALIZED,
-                                  .type = RESOURCE_COLOR_ATTACHMENT,
-                                  .clear = TRUE,
-                                  .swapchain = TRUE,
-                                  .vk.view = v->swapchain.views[i],
-                              }));
-    }
 
     return r;
 }
@@ -75,9 +76,12 @@ u32 SEAddLayout(SEwindow *win, SERenderPipelineInfo *r) {
 
 u32 SEAddVertexBuffer(SERenderPipelineInfo* r, SEMemType type, u32 size) {
     dynPush(r->resources, ((Resource){ 
-            .type = RESOURCE_VERTEX_BUFFER,
+            .type = RESOURCE_BUFFER,
             .lastUsage = RESOURCE_READ,
-            .vk.bufIdx = r->vertBufInfo.size,
+            .vk.buf = {
+                .usage = BUFFER_USAGE_VERTEX,
+                .idx = r->vertBufInfo.size,
+            }
         }));
 
     dynPush(r->vertBufInfo, ((BufferInfo){
@@ -88,9 +92,27 @@ u32 SEAddVertexBuffer(SERenderPipelineInfo* r, SEMemType type, u32 size) {
     return r->resources.size - 1;
 }
 
-u32 SEAddResource(SERenderPipelineInfo *r, bool8 clear) {
-    dynPush(r->resources, ((Resource){.lastUsage = RESOURCE_READ, .type = RESOURCE_COLOR_ATTACHMENT, .clear = clear}));
+u32 SEAddColorAttachment(SERenderPipelineInfo* r, u32 width, u32 height) {
+    dynPush(r->resources, ((Resource){ 
+            .type = RESOURCE_IMAGE,
+            .lastUsage = RESOURCE_UNINITIALIZED,
+        }));
+
     return r->resources.size - 1;
+}
+
+u32 SEAddImg(SERenderPipelineInfo *r, u32 width, u32 height, bool8 clear) {
+    dynPush(r->resources, ((Resource){.lastUsage = RESOURCE_READ, .type = RESOURCE_IMAGE, 
+                .vk.img = {
+                    .width = width,
+                    .height = height,
+                    .clear = clear,
+                }}));
+    return r->resources.size - 1;
+}
+
+void SESetBackBuffer(SERenderPipelineInfo* r, u32 resourceID) {
+    r->backbuffer = resourceID;
 }
 
 void SEBindShaders(SERenderPipelineInfo *r, u32 vert, u32 frag, u32 layout) {
@@ -102,6 +124,16 @@ void SEBindShaders(SERenderPipelineInfo *r, u32 vert, u32 frag, u32 layout) {
 void SEReadResource(SERenderPipelineInfo *r, u32 resourceID) {
     dynPush(r->reads, resourceID);
     dynBack(r->passes).numReads++;
+}
+
+void SEUseVertexBuffer(SERenderPipelineInfo* r, u32 resourceID) {
+    dynPush(r->reads, resourceID);
+}
+
+void SEUseColorAttachment(SERenderPipelineInfo* r, u32 resourceID) {
+    dynPush(r->writes, resourceID);
+    dynPush(r->writeInfo, WRITE_IMG_COLOR_ATTACHMENT);
+    r->resources.data[resourceID].vk.img.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 }
 
 void SEWriteResource(SERenderPipelineInfo *r, u32 resourceID) {
@@ -125,6 +157,7 @@ void SEEndRenderPass(SERenderPipelineInfo *r) {}
 void SEAddDrawFunc(SERenderPipelineInfo *r, SEDrawFunc f) { dynBack(r->passes).func = f; }
 
 typedef struct PipelineBuildInfo {
+    SERenderPipeline* p;
     dynArray(VkAttachmentDescription) descrips;
     dynArray(VkAttachmentReference) refs;
     dynArray(VkSubpassDependency) deps;
@@ -136,8 +169,9 @@ typedef struct PipelineBuildInfo {
     PipelineBarrier barrier;
 } PipelineBuildInfo;
 
-void ReadColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
-        dynPush(buildInfo->views, obj->vk.view);
+void ReadImage(PipelineBuildInfo* buildInfo, ReadType t, Resource* obj) {
+        SEImage img = buildInfo->p->images.data[obj->vk.img.idx];
+        dynPush(buildInfo->views, img.view);
 
         VkAttachmentDescription descrip = {};
 
@@ -151,30 +185,36 @@ void ReadColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
         };
 
         descrip.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        descrip.format = obj->vk.img.format;
+
+        switch (t) {
+            case READ_IMG_INPUT_ATTACHMENT:
+            {
+                ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+            }
+            break;
+            default: panic();
+        }
 
         switch (obj->lastUsage) {
             case RESOURCE_UNINITIALIZED: {
                 panic(); // should never happen
             } break;
             case RESOURCE_READ: {
-                descrip.format = VK_FORMAT_B8G8R8A8_SRGB;
                 descrip.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 descrip.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 descrip.samples = VK_SAMPLE_COUNT_1_BIT;
 
                 descrip.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 
-                ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             } break;
             case RESOURCE_WRITE: {
-                descrip.format = VK_FORMAT_B8G8R8A8_SRGB;
                 descrip.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 descrip.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 descrip.samples = VK_SAMPLE_COUNT_1_BIT;
 
                 descrip.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-
-                ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
                 dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
                 dep.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
@@ -194,12 +234,14 @@ void ReadColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
         dynPush(buildInfo->refs, ref);
 }
 
-bool8 WriteColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
+bool8 WriteImage(PipelineBuildInfo* buildInfo, WriteType t, Resource* obj) {
         bool8 swapchain = FALSE;
         if (obj->swapchain)
             swapchain = TRUE;
-        else
-            dynPush(buildInfo->views, obj->vk.view);
+        else {
+            SEImage img = buildInfo->p->images.data[obj->vk.img.idx];
+            dynPush(buildInfo->views, img.view);
+        }
 
         VkAttachmentDescription descrip = {};
 
@@ -213,10 +255,20 @@ bool8 WriteColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
         };
 
         descrip.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        descrip.format = obj->vk.img.format;
+
+        switch (t) {
+            case WRITE_IMG_COLOR_ATTACHMENT:
+            {
+                ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            }
+            break;
+            default: panic();
+        }
 
         switch (obj->lastUsage) {
             case RESOURCE_UNINITIALIZED: {
-                descrip.format = VK_FORMAT_B8G8R8A8_SRGB;
 
                 descrip.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
                 descrip.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -228,9 +280,6 @@ bool8 WriteColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
                 else
                     descrip.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 
-                ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-                dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
                 dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
                 dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -239,7 +288,6 @@ bool8 WriteColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
             } break;
             case RESOURCE_READ: {
                 debuglog("hit");
-                descrip.format = VK_FORMAT_B8G8R8A8_SRGB;
 
                 descrip.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 descrip.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -247,8 +295,6 @@ bool8 WriteColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
                 descrip.samples = VK_SAMPLE_COUNT_1_BIT;
 
                 descrip.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-
-                ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
                 dep.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
                 dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -256,13 +302,10 @@ bool8 WriteColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
                 dep.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT |
                                     VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
 
-                dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
                 dynPush(buildInfo->deps, dep);
             } break;
             case RESOURCE_WRITE: {
                 debuglog("hit");
-                descrip.format = VK_FORMAT_B8G8R8A8_SRGB;
                 descrip.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
                 descrip.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -271,14 +314,11 @@ bool8 WriteColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
 
                 descrip.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 
-                ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
                 dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
                 dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
                 dep.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-                dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
                 dynPush(buildInfo->deps, dep);
             } break;
         }
@@ -290,7 +330,7 @@ bool8 WriteColorAttachment(PipelineBuildInfo* buildInfo, Resource* obj) {
         return swapchain;
 }
 
-void ReadVertexBuffer(PipelineBuildInfo* buildInfo, Resource* obj) {
+void ReadBuffer(PipelineBuildInfo* buildInfo, Resource* obj) {
     switch (obj->lastUsage) {
         case RESOURCE_UNINITIALIZED:
             todo();
@@ -318,8 +358,8 @@ void BuildPass(PipelineBuildInfo *buildInfo, SEVulkan *v, SERenderPipelineInfo *
         for (u32 j = 0; j < passInfo->numReads; j++) {
             Resource *obj = &r->resources.data[r->reads.data[offset + j]];
             switch (obj->type) {
-                case RESOURCE_COLOR_ATTACHMENT: ReadColorAttachment(buildInfo, obj); break;
-                case RESOURCE_VERTEX_BUFFER: ReadVertexBuffer(buildInfo, obj); break;
+                case RESOURCE_IMAGE: ReadImage(buildInfo, r->readInfo.data[offset + j], obj); break;
+                case RESOURCE_BUFFER: ReadBuffer(buildInfo, obj); break;
                 default: todo();
             }
             debuglog("\tRead: %d", r->reads.data[j]);
@@ -330,7 +370,7 @@ void BuildPass(PipelineBuildInfo *buildInfo, SEVulkan *v, SERenderPipelineInfo *
             Resource *obj = &r->resources.data[r->writes.data[offset + j]];
 
             switch (obj->type) {
-                case RESOURCE_COLOR_ATTACHMENT: swapchain = WriteColorAttachment(buildInfo, obj); break;
+                case RESOURCE_IMAGE: swapchain = WriteImage(buildInfo, r->writeInfo.data[offset + j], obj); break;
                 default: todo();
             }
 
@@ -393,7 +433,7 @@ void BuildPass(PipelineBuildInfo *buildInfo, SEVulkan *v, SERenderPipelineInfo *
         vkCreateFramebuffer(v->dev, &frame, NULL, &buf);
         dynPush(p->framebuffers, buf);
     } else {
-        dynPush(buildInfo->views, r->resources.data[0].vk.view);
+        //dynPush(buildInfo->views, r->resources.data[0].vk.view);
         for (u32 i = 0; i < v->swapchain.imgcount; i++) {
             dynBack(buildInfo->views) = v->swapchain.views[i];
             VkFramebufferCreateInfo frame = {
@@ -435,18 +475,48 @@ SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *r) {
         .buf.a = win->mem,
         .bufAllocators.a = win->mem,
         .resourceMaps.a = win->mem,
+        .images.a = win->mem,
     };
 
     PipelineBuildInfo buildInfo = {
+        .p = p,
         .descrips.a = win->mem,
         .refs.a = win->mem,
         .deps.a = win->mem,
         .views.a = win->mem,
     };
 
+
+
+    ScratchArena sc = ScratchArenaGet(NULL);
+    VkFormat* formats = ArenaAlloc(&sc.arena, sizeof(VkFormat) * 50);
+    //Create Attachments
+    for (u32 i = 0; i < r->resources.size; i++) {
+        if (r->resources.data[i].type != RESOURCE_IMAGE) continue;
+        u32 formatnum = 0;
+        
+        if (r->resources.data[i].vk.img.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
+            formats[formatnum++] = v->swapchain.format.format;
+        }
+
+        if (r->resources.data[i].vk.img.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+            formats[formatnum++] = VK_FORMAT_D32_SFLOAT;
+            formats[formatnum++] = VK_FORMAT_D32_SFLOAT_S8_UINT;
+            formats[formatnum++] = VK_FORMAT_D24_UNORM_S8_UINT;
+        }
+
+        r->resources.data[i].vk.img.idx = p->images.size;
+        dynPush(p->images, AllocImage(v, r->resources.data[i].vk.img.usage,
+                    formats, formatnum,
+                    r->resources.data[i].vk.img.width, r->resources.data[i].vk.img.height));
+    
+    }
+    ScratchArenaEnd(sc);
+    p->backbuffer = r->backbuffer;
+
     // INFO(ELI):
     // The subpass dependencies take care of virtually all
-   // operations which do not cross queue boundaries
+    // operations which do not cross queue boundaries
     //
     // Barriers are only required when moving between
     // queues or when doing work outside of a renderpass
@@ -600,7 +670,7 @@ void SEDestroyPipelineInfo(SEwindow *win, SERenderPipelineInfo *r) {
 void* SEMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID) {
     SEVulkan *v = GetGraphics(win);
 
-    u32 id = r->resourceMaps.data[resourceID].vk.bufIdx;
+    u32 id = r->resourceMaps.data[resourceID].vk.buf.idx;
     SEBuffer b = r->vertexBuffers.data[id];
     u32 memid = r->bufAllocators.data[b.parent].memid;
 
@@ -620,7 +690,7 @@ void SEUnMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID) {
 void SEUploadBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* src, u32 size) {
     SEVulkan* v = GetGraphics(win);
 
-    u32 id = r->resourceMaps.data[resourceID].vk.bufIdx;
+    u32 id = r->resourceMaps.data[resourceID].vk.buf.idx;
     SEBuffer dst = r->vertexBuffers.data[id];
 
     u32 remaining = size;

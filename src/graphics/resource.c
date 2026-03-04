@@ -98,6 +98,105 @@ SEBuffer AllocBuffer(SEwindow* win, BufferAllocator* allocator, u32 bufID, u64 s
     return out;
 }
 
+
+SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat* formats, u32 numFormats, u32 width, u32 height) {
+    
+    VkFormatFeatureFlags feat = 0;
+    VkImageAspectFlags aspect = 0;
+    if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
+            feat |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+            aspect |= VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+            feat |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+            aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
+     
+    if (feat == 0) {
+        debugerr("Usage Not yet Supported!");
+        panic();
+    }
+
+    VkFormat selected = VK_FORMAT_UNDEFINED;
+    for (u32 i = 0; i < numFormats; i++) {
+        VkFormatProperties format_info;
+        vkGetPhysicalDeviceFormatProperties(v->pdev, formats[i], &format_info);
+
+        if ((format_info.optimalTilingFeatures & feat) == feat) {
+            selected = formats[i];
+            break;
+        }
+    }
+
+    assert(selected != VK_FORMAT_UNDEFINED);
+    debuglog("Selected Format: %d", selected);
+
+
+    SEImage out = {
+        .format = selected,
+        .width = width,
+        .height = height,
+    }; 
+
+    VkImageCreateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = out.format,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .sharingMode = (v->queues.gfam == v->queues.tfam) ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT,
+        .extent = (VkExtent3D){width, height, 1},
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .arrayLayers = 1,
+        .mipLevels = 1,
+        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | usage,
+        .queueFamilyIndexCount = 1 + (v->queues.gfam != v->queues.tfam),
+        .pQueueFamilyIndices = (u32[]){v->queues.gfam, v->queues.tfam},
+    };
+
+
+    vkCreateImage(v->dev, &info, NULL, &out.img);
+
+    VkMemoryRequirements req;
+    vkGetImageMemoryRequirements(v->dev, out.img, &req);
+    debuglog("Format: %d", out.format);
+    debuglog("Img Req: Size %d, Alignment %d", req.size, req.alignment);
+
+    for (int i = 0; i < v->memory.heaps.size; i++) {
+        if (req.memoryTypeBits & (1 << v->memory.types.data[i])) {
+            out.memid = i;
+            out.r = AllocateDeviceMem(&v->memory.heaps.data[i], req.size, req.alignment);
+            vkBindImageMemory(v->dev, out.img, v->memory.mem.data[i], out.r.offset);
+            break;
+        }
+    }
+
+    VkImageViewCreateInfo viewinfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .components = {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        }, 
+        .image = out.img,
+        .format = out.format,
+        .subresourceRange = {
+            .aspectMask = aspect,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+        },
+    };
+
+    vkCreateImageView(v->dev, &viewinfo, NULL, &out.view);
+
+    return out;
+}
+
 //void* GetHandle(SEwindow* win, SEBuffer b) {
 //    SEVulkan* v = GetGraphics(win);
 //

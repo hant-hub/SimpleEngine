@@ -523,11 +523,11 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
 
         //default memory
         if (s.memory.max_static_mem == 0) {
-            s.memory.max_static_mem = MB(2);
+            s.memory.max_static_mem = MB(40);
         }
 
         if (s.memory.max_dynamic_mem == 0) {
-            s.memory.max_dynamic_mem = MB(2);
+            s.memory.max_dynamic_mem = MB(20);
         }
 
         //TODO(ELI): default size stuff later

@@ -22,7 +22,7 @@ int main() {
 
     SERenderPipelineInfo* r = SECreatePipeline(win);
 
-    u32 r1 = SEAddResource(r, TRUE);
+    //u32 r1 = SEAddImg(r, TRUE);
 
     u32 vert = SEAddShader(win, r, sstring("../shaders/basic.vert.spv"));
     u32 vert2 = SEAddShader(win, r, sstring("../shaders/shift.vert.spv"));

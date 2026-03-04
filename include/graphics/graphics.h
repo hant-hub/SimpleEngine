@@ -45,7 +45,8 @@ void SEEndRenderPass(SERenderPipelineInfo* r);
 
 u32 SEAddVertexBuffer(SERenderPipelineInfo* r, SEMemType type, u32 size);
 
-u32 SEAddResource(SERenderPipelineInfo* r, bool8 clear);
+//u32 SEAddResource(SERenderPipelineInfo* r, bool8 clear);
+u32 SEAddImg(SERenderPipelineInfo *r, u32 width, u32 height, bool8 clear);
 u32 SEAddShader(SEwindow* win, SERenderPipelineInfo* r, SString source);
 void SEBindShaders(SERenderPipelineInfo* r, u32 vert, u32 frag, u32 layout);
 u32 SEAddLayout(SEwindow* win, SERenderPipelineInfo* r);

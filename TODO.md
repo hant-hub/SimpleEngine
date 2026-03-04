@@ -1,47 +1,16 @@
 # TODOS:
 
 ## Next Time
-- [X] Add Funcs for Allocating Buffers
-- [X] Extend RenderGraph
-    - [X] Insert Buffer into RenderGraph
-    - [X] Extend SEPass to bind Vertex Buffers
-    - [X] Bind Vertex Buffers
-    - [X] Map Dynamic Buffers
-    - [X] Transfer Queue for Static Buffers
-- [X] Clean up
-    - [X] Unmap Dynamic Buffers
-- [X] Move Buffers into RenderGraph
-    - [X] Remove Allocations from SEVulkan
-        - [X] Remove BufAllocators
-        - [X] SEsettings
-        - [X] ConfigMaxGPU Mem
-    - [X] Fix Allocation Funcs
-        - [X] Remove Config Buf Allocator
-        - [X] Fix Alloc Buffer to use Rendergraph
-    - [X] Rendergraph allocate
-        - [X] Move allocations into RenderGraph
-        - [X] Change Allocate Buffer to use RenderGraph
-        - [X] Move ConfigMaxGPU Mem into init
-    - [X] Buffer Allocate
-        - [X] Step to Allocate Memory
-        - [X] Create Resource
-        - [X] Retrieve Buffer
-            - [X] Dynamic Void*
-            - [X] Static Upload
-- [ ] Fix Internal Api
-    - [ ] Convert Internal graphics API to use SEVulkan instead of SEwindow
-- [ ] Resize Support
-    - [ ] Rework Attachments
-        - [ ] Allocators for images
-        - [ ] Attachment Description (size, format, etc)
-        - [ ] FrameBuffer Description (which attachments)
-        - [ ] Change Graph to blit to swapchain
-            - [ ] Mark Back Buffer
-            - [ ] Future Prune unused passes
-    - [ ] Swapchain Recreation
-    - [ ] Attachment Recreation?
-        - [ ] Attachment registry
-    - [ ] Framebuffer Recreation
+- [ ] RenderGraph Rewrite
+    - [ ] Building Graph
+        - [ ] design doc + mem layout
+        - [ ] RenderPass builder
+        - [ ] Gen Resources
+        - [ ] Gen VkRenderPasses
+        - [ ] build runtime Pipeline
+    - [ ] Using Graph
+        - [ ] Dispatch Commands
+        - [ ] Resize
 
 
 ## Quality of Life:

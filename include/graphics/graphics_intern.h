@@ -53,10 +53,10 @@ typedef struct SEImage {
     VkImageView view;
     MemoryRange r;
     VkFormat format;
-    VkImageLayout layout;
     u32 memid;
     u32 width, height;
 } SEImage;
+SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat* formats, u32 numFormats, u32 width, u32 height);
 
 
 //vulkan
@@ -148,11 +148,29 @@ typedef enum ResourceUsage {
     RESOURCE_WRITE = 1 << 1,
 } ResourceUsage;
 
+//INFO(ELI):
+//The plan is for Image to dynamically pick a format,
+//buffer to be user controlled, and for texture to
+//allow for the user to pick a format.
 typedef enum ResourceType {
-    RESOURCE_COLOR_ATTACHMENT = 0,
+    RESOURCE_IMAGE = 0,
+    RESOURCE_BUFFER,
     RESOURCE_TEXTURE,
-    RESOURCE_VERTEX_BUFFER,
 } ResourceType;
+
+typedef enum BufferUsage {
+    BUFFER_USAGE_VERTEX,
+    BUFFER_USAGE_INDEX,
+} BufferUsage;
+
+typedef enum ReadType {
+    READ_BUFFER_VERTEX,
+    READ_IMG_INPUT_ATTACHMENT
+} ReadType;
+
+typedef enum WriteType {
+    WRITE_IMG_COLOR_ATTACHMENT,
+} WriteType;
 
 typedef struct Resource {
     ResourceType type;
@@ -163,8 +181,17 @@ typedef struct Resource {
     //to retrieve resource info.
     u32 idx;
     union {
-        VkImageView view;
-        u32 bufIdx;
+        struct {
+            VkImageUsageFlags usage;
+            VkFormat format;
+            u32 width, height;
+            bool8 clear;
+            u32 idx;
+        } img;
+        struct {
+            BufferUsage usage; 
+            u32 idx;
+        } buf;
     } vk;
 
     bool8 clear;
@@ -175,6 +202,11 @@ typedef struct BufferInfo {
     SEMemType memType;
     u32 size;
 } BufferInfo;
+
+typedef struct AttachmentInfo {
+    VkImageUsageFlags usage;
+    u32 width, height;
+} AttachmentInfo;
 
 //structure to store graph before object creation
 typedef struct SERenderPassInfo {
@@ -203,13 +235,18 @@ typedef struct SERenderPassInfo {
 typedef struct SERenderPipelineInfo {
     Allocator a;
 
+    u32 backbuffer;
     dynArray(VkVertexInputBindingDescription) bindings;
     dynArray(VkVertexInputAttributeDescription) attrs;
     dynArray(SERenderPassInfo) passes;
     dynArray(VkShaderModule) shaders;
     dynArray(VkPipelineLayout) layouts;
+
     dynArray(u32) writes;
     dynArray(u32) reads;
+    dynArray(WriteType) writeInfo;
+    dynArray(ReadType) readInfo;
+
     dynArray(Resource) resources;
     dynArray(BufferInfo) vertBufInfo;
     dynArray(BufferInfo) indexBufInfo;
@@ -251,6 +288,7 @@ typedef struct PipelineBarrier {
 
 typedef struct SERenderPipeline {
     Allocator a;
+    u32 backbuffer;
 
     dynArray(Resource) resourceMaps;
     dynArray(VkCommandBuffer) buf;
@@ -263,6 +301,7 @@ typedef struct SERenderPipeline {
     dynArray(SEBuffer) vertexBuffers;
     dynArray(SEBuffer) indexBuffers;
 
+    dynArray(SEImage) images;
     dynArray(SEPass) passes;
 } SERenderPipeline;
 
