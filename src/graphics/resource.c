@@ -99,7 +99,7 @@ SEBuffer AllocBuffer(SEwindow* win, BufferAllocator* allocator, u32 bufID, u64 s
 }
 
 
-SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat* formats, u32 numFormats, u32 width, u32 height) {
+SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat format, u32 width, u32 height) {
     
     VkFormatFeatureFlags feat = 0;
     VkImageAspectFlags aspect = 0;
@@ -118,23 +118,9 @@ SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat* formats, u32 
         panic();
     }
 
-    VkFormat selected = VK_FORMAT_UNDEFINED;
-    for (u32 i = 0; i < numFormats; i++) {
-        VkFormatProperties format_info;
-        vkGetPhysicalDeviceFormatProperties(v->pdev, formats[i], &format_info);
-
-        if ((format_info.optimalTilingFeatures & feat) == feat) {
-            selected = formats[i];
-            break;
-        }
-    }
-
-    assert(selected != VK_FORMAT_UNDEFINED);
-    debuglog("Selected Format: %d", selected);
-
 
     SEImage out = {
-        .format = selected,
+        .format = format,
         .width = width,
         .height = height,
     }; 

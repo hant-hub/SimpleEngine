@@ -10,7 +10,7 @@ int main() {
     setdirExe();
     InitSE();
     SEwindow* win = CreateWindow(GlobalAllocator, "test", NULL);
-    SERenderPipelineInfo* r = SECreatePipeline(win);
+    //SERenderPipelineInfo* r = SECreatePipeline(win);
 
     SEStructSpec vertSpec[] = {
         (SEStructSpec){
@@ -33,9 +33,9 @@ int main() {
         },
     };
 
-    SEBeginRenderPass(r);
-    AddVertexBinding(r, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
-    SEEndRenderPass(r);
+    //SEBeginRenderPass(r);
+    //AddVertexBinding(r, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
+    //SEEndRenderPass(r);
     
 
     /* API PLAN

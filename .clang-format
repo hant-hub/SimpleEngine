@@ -5,8 +5,14 @@ BreakBeforeBraces: Custom
 BraceWrapping:
     AfterClass: false
 
+BreakBeforeBinaryOperators: All
+
+
 AllowShortLoopsOnASingleLine: true
 AllowShortBlocksOnASingleLine: true
+AlignAfterOpenBracket: true
+
+AlignOperands: AlignAfterOperator
 
 IndentCaseLabels: true
 AllowShortCaseLabelsOnASingleLine: true

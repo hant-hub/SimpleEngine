@@ -56,7 +56,7 @@ typedef struct SEImage {
     u32 memid;
     u32 width, height;
 } SEImage;
-SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat* formats, u32 numFormats, u32 width, u32 height);
+SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat format, u32 width, u32 height);
 
 
 //vulkan
@@ -134,175 +134,123 @@ typedef struct SEVulkan {
 
 void SEConfigMaxGPUMem(SEwindow* win, SEMemType t, u64 size);
 
-//Rendergraph data
-typedef struct SEAttachmentInfo {
-    VkFormat f;
-    bool8 clear;
-    bool8 persistant; //used to determine whether image layout
-                      //is undefined at start of each frame
-} SEAttachmentInfo;
+//Rendergraph
 
-typedef enum ResourceUsage {
-    RESOURCE_UNINITIALIZED = 0,
-    RESOURCE_READ  = 1 << 0,
-    RESOURCE_WRITE = 1 << 1,
-} ResourceUsage;
-
-//INFO(ELI):
-//The plan is for Image to dynamically pick a format,
-//buffer to be user controlled, and for texture to
-//allow for the user to pick a format.
-typedef enum ResourceType {
-    RESOURCE_IMAGE = 0,
+typedef enum Resourcetype {
+    RESOURCE_IMAGE,
     RESOURCE_BUFFER,
-    RESOURCE_TEXTURE,
-} ResourceType;
+} Resourcetype;
 
-typedef enum BufferUsage {
-    BUFFER_USAGE_VERTEX,
-    BUFFER_USAGE_INDEX,
-} BufferUsage;
-
-typedef enum ReadType {
-    READ_BUFFER_VERTEX,
-    READ_IMG_INPUT_ATTACHMENT
-} ReadType;
-
-typedef enum WriteType {
-    WRITE_IMG_COLOR_ATTACHMENT,
-} WriteType;
+typedef enum AccessFlag {
+    ACCESS_UNINITIALIZED = 0,
+    ACCESS_PREINITIALIZED,
+    ACCESS_COLOR_ATTACHMENT,
+} AccessFlag;
 
 typedef struct Resource {
-    ResourceType type;
-    ResourceUsage lastUsage; 
-    
-    //TODO(ELI): move views etc into a central
-    //Image Allocator. Use Resource Type + idx
-    //to retrieve resource info.
-    u32 idx;
-    union {
-        struct {
-            VkImageUsageFlags usage;
-            VkFormat format;
-            u32 width, height;
-            bool8 clear;
-            u32 idx;
-        } img;
-        struct {
-            BufferUsage usage; 
-            u32 idx;
-        } buf;
-    } vk;
+    Resourcetype type;
 
-    bool8 clear;
-    bool8 swapchain;
+    union {
+        struct SEImageInfo {
+            AccessFlag lastAccess;
+            f32 width, height;
+            VkFormat format;
+            VkImageUsageFlags usage;
+            bool8 swapRel;
+            bool8 persist;
+            VkImageLayout layout;
+        } img;
+
+        struct SEBufferInfo {
+            VkBufferUsageFlags usage;
+            SEMemType memType;
+            u32 size;
+        } buf;
+    } resourceInfo;
 } Resource;
 
-typedef struct BufferInfo {
-    SEMemType memType;
-    u32 size;
-} BufferInfo;
+typedef struct PipelineInfo {
+    VkPipelineLayout layout;
 
-typedef struct AttachmentInfo {
-    VkImageUsageFlags usage;
-    u32 width, height;
-} AttachmentInfo;
+    VkPipelineInputAssemblyStateCreateInfo    pInputAssemblyState;
+    VkPipelineTessellationStateCreateInfo     pTessellationState;
+    VkPipelineViewportStateCreateInfo         pViewportState;
+    VkPipelineRasterizationStateCreateInfo    pRasterizationState;
+    VkPipelineMultisampleStateCreateInfo      pMultisampleState;
+    VkPipelineDepthStencilStateCreateInfo     pDepthStencilState;
+    VkPipelineColorBlendStateCreateInfo       pColorBlendState;
+    VkPipelineDynamicStateCreateInfo          pDynamicState;
 
-//structure to store graph before object creation
-typedef struct SERenderPassInfo {
-    u32 readStart;
-    u32 numReads;
-    u32 writeStart;
-    u32 numWrites;
+    VkPipelineColorBlendAttachmentState colorBlend;
+    VkDynamicState dynStates[2];
 
-    struct {
-        u32 vertex;
-        u32 fragment;
-        u32 layout;
-    } pipeline;
-
-    struct {
-        u32 firstBinding;
-        u32 numBindings;
-
-        u32 firstAttr;
-        u32 numAttrs;
-    } vertInfo;
-
-    void* func;
-} SERenderPassInfo;
-
-typedef struct SERenderPipelineInfo {
-    Allocator a;
-
-    u32 backbuffer;
     dynArray(VkVertexInputBindingDescription) bindings;
     dynArray(VkVertexInputAttributeDescription) attrs;
-    dynArray(SERenderPassInfo) passes;
-    dynArray(VkShaderModule) shaders;
-    dynArray(VkPipelineLayout) layouts;
+    VkShaderModule vert;
+    VkShaderModule frag;
+} PipelineInfo;
 
-    dynArray(u32) writes;
-    dynArray(u32) reads;
-    dynArray(WriteType) writeInfo;
-    dynArray(ReadType) readInfo;
+typedef struct PassInfo {
+    dynArray(u32) color_attachments; 
+    dynArray(u32) vertex_buffers;
+    u32 pipeline;
+} PassInfo;
 
+typedef struct SERenderPipelineInfo {
+    u32 backbuffer;
     dynArray(Resource) resources;
-    dynArray(BufferInfo) vertBufInfo;
-    dynArray(BufferInfo) indexBufInfo;
+    dynArray(PassInfo) passes;
+    dynArray(PipelineInfo) pipeline;
 } SERenderPipelineInfo;
 
-typedef struct SECmdBuf {
-    VkCommandBuffer buf;
-} SECmdBuf;
-
-typedef struct SEPass {
-    VkRenderPass rpass;
-    VkPipeline pipe;
-    SEDrawFunc func;
-    u32 framebuffer;
+typedef struct Pass {
+    struct {
+        VkRenderPass pass;
+        u32 framebuffer;
+        VkPipeline pipeline;
+    } pass;
 
     struct {
-        u32 start;
-        u32 size;
-    } vertbufs;
+        struct {
+            u32 start;
+            u32 num;
+        } verts;
+    } resources;
 
-    struct {
-        u32 start;
-        u32 size;
-    } idxbufs;
+    void (*draw)();
+    bool8 (*clear)();
+} Pass;
 
-    bool8 targetSwap; //If we target a swapchain image
-                      //We need to use the image index to
-                      //pick the correct framebuffer
-} SEPass;
+typedef struct FrameBufferInfo {
+    u32 first;
+    u32 num;
+} FrameBufferInfo;
 
-typedef struct PipelineBarrier {
-    VkPipelineStageFlags srcStageMask; 
-    VkPipelineStageFlags dstStageMask;
-    VkDependencyFlags depFlags; //specify region stuff (probably ignore)
-    VkMemoryBarrier barrier;
-    VkImageMemoryBarrier imageBarrier; //do layout transitions (probably not necessary)
-    VkBufferMemoryBarrier bufferBarrier;
-} PipelineBarrier;
+typedef enum BufAllocType {
+    BUF_ALLOC_VERT_STATIC = 0,
+    BUF_ALLOC_VERT_DYN,
+    BUF_ALLOC_NUM,
+    BUF_ALLOC_INVALID = ~0,
+} BufAllocType;
 
 typedef struct SERenderPipeline {
-    Allocator a;
-    u32 backbuffer;
-
-    dynArray(Resource) resourceMaps;
-    dynArray(VkCommandBuffer) buf;
-
-    dynArray(PipelineBarrier) barriers;
-    dynArray(VkFramebuffer) framebuffers;
+    u32 backbuffer; // image to blit to swapchain img
 
     dynArray(BufferAllocator) bufAllocators;
 
-    dynArray(SEBuffer) vertexBuffers;
-    dynArray(SEBuffer) indexBuffers;
+    dynArray(Pass) passes;
 
+    dynArray(u32) resourceMapping; //maps resourceID to resource ie: vertBuffer or image
+    dynArray(u32) passVertMapping;
+    dynArray(SEBuffer) vertBuffers;
+
+    dynArray(FrameBufferInfo) framebufferInfos;
+    dynArray(VkFramebuffer) framebuffers;
+    dynArray(u32) frameBufferMapping;
+
+    //used for resizing
+    dynArray(struct SEImageInfo) imgInfos;
     dynArray(SEImage) images;
-    dynArray(SEPass) passes;
 } SERenderPipeline;
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -335,13 +283,7 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
 void DestroyVulkan(SEVulkan g, Allocator a);
 
 //helpers
-VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r,
-        VkVertexInputBindingDescription* bindings,
-        u32 bindnum,
-        VkVertexInputAttributeDescription* attributes,
-        u32 attrnum,
-        VkPipelineLayout layout,
-        VkShaderModule vert,
-        VkShaderModule frag);
+VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r, PipelineInfo* info);
+VkShaderModule CompileShader(SEVulkan* v, SString data);
 
 #endif

@@ -1,106 +1,56 @@
-#include "cutils.h"
-#include "ds.h"
 #include "se.h"
 #include "vulkan/vulkan_core.h"
 #include <graphics/graphics_intern.h>
 
-VkPipeline CreatePipeline(SEVulkan* v,
-        VkRenderPass r,
-        VkVertexInputBindingDescription* bindings,
-        u32 bindnum,
-        VkVertexInputAttributeDescription* attributes,
-        u32 attrnum,
-        VkPipelineLayout layout,
-        VkShaderModule vert,
-        VkShaderModule frag) {
+VkPipelineLayout CreatePipelineLayout(SEVulkan* v) {
 
-    VkPipelineShaderStageCreateInfo shaders[2]; 
+    VkPipelineLayoutCreateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    };
+
+    VkPipelineLayout layout = 0;
+    vkCreatePipelineLayout(v->dev, &info, NULL, &layout);
+    return layout;
+}
+
+VkPipeline CreatePipeline(SEVulkan *v, VkRenderPass r, PipelineInfo *info) {
+
+    VkPipelineShaderStageCreateInfo shaders[2];
     shaders[0] = (VkPipelineShaderStageCreateInfo){
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
         .pName = "main",
-        .module = vert,
+        .module = info->vert,
     };
     shaders[1] = (VkPipelineShaderStageCreateInfo){
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
         .pName = "main",
-        .module = frag,
+        .module = info->frag,
     };
 
     VkPipelineVertexInputStateCreateInfo vertinput = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexAttributeDescriptionCount = attrnum,
-        .vertexBindingDescriptionCount = bindnum,
-        .pVertexAttributeDescriptions = attributes,
-        .pVertexBindingDescriptions = bindings,
+        .vertexAttributeDescriptionCount = info->attrs.size,
+        .vertexBindingDescriptionCount = info->bindings.size,
+        .pVertexAttributeDescriptions = info->attrs.data,
+        .pVertexBindingDescriptions = info->bindings.data,
     };
 
-    VkPipelineInputAssemblyStateCreateInfo assem = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE
-    };
-
-    VkPipelineViewportStateCreateInfo view = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .scissorCount = 1,
-    };
-
-    VkPipelineDynamicStateCreateInfo dyn = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = 2,
-        .pDynamicStates = (VkDynamicState[]){
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR
-        },
-    };
-
-    VkPipelineRasterizationStateCreateInfo raster = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .lineWidth = 1.0f,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE,
-    };
-
-    VkPipelineMultisampleStateCreateInfo multi = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable = VK_FALSE,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-    };
-
-    VkPipelineColorBlendAttachmentState blend = {
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                          VK_COLOR_COMPONENT_G_BIT |
-                          VK_COLOR_COMPONENT_B_BIT |
-                          VK_COLOR_COMPONENT_A_BIT,
-        .blendEnable = VK_FALSE,
-    };
-
-    VkPipelineColorBlendStateCreateInfo color = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .attachmentCount = 1,
-        .pAttachments = &blend,
-        .logicOpEnable = VK_FALSE,
-    };
-
+    //TODO(ELI): Extract later
+    info->layout = CreatePipelineLayout(v);
 
     VkGraphicsPipelineCreateInfo pipeInfo = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .layout = layout,
+        .layout = info->layout,
         .subpass = 0,
-        .pColorBlendState = &color,
+        .pColorBlendState = info->pColorBlendState.sType ? &info->pColorBlendState : NULL,
         .pVertexInputState = &vertinput,
-        .pInputAssemblyState = &assem,
-        .pDynamicState = &dyn,
-        .pRasterizationState = &raster,
-        .pMultisampleState = &multi,
-        .pViewportState = &view,
+        .pInputAssemblyState = info->pInputAssemblyState.sType ? &info->pInputAssemblyState : NULL,
+        .pDynamicState = info->pDynamicState.sType ? &info->pDynamicState : NULL,
+        .pRasterizationState = info->pRasterizationState.sType ? &info->pRasterizationState : NULL,
+        .pMultisampleState = info->pMultisampleState.sType ? &info->pMultisampleState : NULL,
+        .pViewportState = info->pViewportState.sType ? &info->pViewportState : NULL,
         .stageCount = 2,
         .pStages = shaders,
         .renderPass = r,
@@ -112,4 +62,14 @@ VkPipeline CreatePipeline(SEVulkan* v,
     return pipe;
 }
 
+VkShaderModule CompileShader(SEVulkan* v, SString data) {
+    VkShaderModuleCreateInfo moduleInfo = {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = data.len,
+        .pCode = (u32*)data.data,
+    };
 
+    VkShaderModule m = 0;
+    vkCreateShaderModule(v->dev, &moduleInfo, NULL, &m);
+    return m;
+}

@@ -26,7 +26,7 @@ int main() {
         VK_FORMAT_R8G8B8A8_SRGB,
         VK_FORMAT_B8G8R8A8_SRGB,
     };
-    SEImage img = AllocImage(GetGraphics(win), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, formats, ARRAY_SIZE(formats), 800, 600);  
+    SEImage img = AllocImage(GetGraphics(win), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, swap, 800, 600);  
 
 
     /* 

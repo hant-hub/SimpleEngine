@@ -9,7 +9,7 @@
 void AddVertexBinding(SERenderPipelineInfo* rinfo, SEBindingType type, SEStructSpec* layout, u32 numMembers) {
 
     //next binding, plus increment
-    u32 binding = dynBack(rinfo->passes).vertInfo.numBindings++;
+    u32 binding = 0;// dynBack(rinfo->passes).vertInfo.numBindings++;
     u32 size = 0;
 
     VkVertexInputBindingDescription desc = {
@@ -45,12 +45,12 @@ void AddVertexBinding(SERenderPipelineInfo* rinfo, SEBindingType type, SEStructS
             default: todo();
         }
 
-        dynPush(rinfo->attrs, vertAttr);
-        dynBack(rinfo->passes).vertInfo.numAttrs++;
+        //dynPush(rinfo->attrs, vertAttr);
+        //dynBack(rinfo->passes).vertInfo.numAttrs++;
         size += member.size;
     }
 
     desc.stride = size;
-    dynPush(rinfo->bindings, desc);
+    //dynPush(rinfo->bindings, desc);
 
 }

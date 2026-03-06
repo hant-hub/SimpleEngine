@@ -2,15 +2,28 @@
 
 ## Next Time
 - [ ] RenderGraph Rewrite
-    - [ ] Building Graph
-        - [ ] design doc + mem layout
-        - [ ] RenderPass builder
-        - [ ] Gen Resources
-        - [ ] Gen VkRenderPasses
-        - [ ] build runtime Pipeline
+    - [X] Resource Helpers
+        - [X] Build Pipeline From Struct
+        - [X] Pipeline Layout 
+            - [X] Helper
+    - [X] Building Graph
+        - [X] design doc + mem layout
+        - [X] RenderPass builder
+        - [X] Gen Resources
+            - [X] Buffer Sizing
+            - [X] Image Sizing
+        - [X] Gen VkRenderPasses
+        - [X] build runtime Pipeline
+        - [X] Shader Compilation
+        - [X] FrameBuffer Info
     - [ ] Using Graph
         - [ ] Dispatch Commands
         - [ ] Resize
+- [ ] Improvements
+    - [ ] Pipeline Config Funcs
+    - [ ] Descriptor Sets
+        - [ ] Update Pipeline Layouts
+    - [ ] Shader Storage (only read and compile once)
 
 
 ## Quality of Life:

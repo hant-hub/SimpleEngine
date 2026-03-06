@@ -39,28 +39,20 @@ typedef void (*SEDrawFunc)(SECmdBuf* p, void* pass);
 
 void DrawTriangle(SECmdBuf* buf, void* pass);
 
-SERenderPipelineInfo* SECreatePipeline(SEwindow* win);
-void SEBeginRenderPass(SERenderPipelineInfo* r);
-void SEEndRenderPass(SERenderPipelineInfo* r);
+SERenderPipelineInfo* SECreateRenderPipeline(SEwindow* win);
 
-u32 SEAddVertexBuffer(SERenderPipelineInfo* r, SEMemType type, u32 size);
+u32 SEAddColorAttachment(SEwindow* win, SERenderPipelineInfo* r);
+u32 SENewPass(SEwindow* win, SERenderPipelineInfo* r);
+u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r);
 
-//u32 SEAddResource(SERenderPipelineInfo* r, bool8 clear);
-u32 SEAddImg(SERenderPipelineInfo *r, u32 width, u32 height, bool8 clear);
-u32 SEAddShader(SEwindow* win, SERenderPipelineInfo* r, SString source);
-void SEBindShaders(SERenderPipelineInfo* r, u32 vert, u32 frag, u32 layout);
-u32 SEAddLayout(SEwindow* win, SERenderPipelineInfo* r);
+void SEWriteColorAttachment(SEwindow* win, SERenderPipelineInfo* r, u32 pass, u32 resourceID);
+void SESetBackBuffer(SERenderPipelineInfo* r, u32 resourceID);
+void SEUsePipeline(SERenderPipelineInfo* r, u32 pass, u32 pipe);
 
-void SEReadResource(SERenderPipelineInfo* r, u32 resourceID);
-void SEWriteResource(SERenderPipelineInfo* r, u32 resourceID);
+void SESetShaderVertex(SEwindow* win, SERenderPipelineInfo* info, u32 pipe, SString filename);
+void SESetShaderFrag(SEwindow* win, SERenderPipelineInfo* info, u32 pipe, SString filename);
 
-void SEAddColorTarget(SERenderPipelineInfo* r, u32 idx);
-void SEAddDrawFunc(SERenderPipelineInfo* r, SEDrawFunc f);
-
-SERenderPipeline* SECompilePipeline(SEwindow* win, SERenderPipelineInfo* r);
-
-void SEDestroyPipeline(SEwindow* win, SERenderPipeline* r);
-void SEDestroyPipelineInfo(SEwindow* win, SERenderPipelineInfo* r);
+SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *info);
 
 void* SEMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID);
 void SEUnMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID);
@@ -73,7 +65,5 @@ typedef enum SEBindingType {
     SE_BINDING_VERTEX,
     SE_BINDING_INSTANCE,
 } SEBindingType;
-
-void AddVertexBinding(SERenderPipelineInfo* rinfo, SEBindingType type, SEStructSpec* layout, u32 numMembers);
 
 #endif
