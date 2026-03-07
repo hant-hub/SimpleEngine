@@ -82,6 +82,8 @@ int main() {
         
     }
 
+    SEDestroyRenderPipelineInfo(win, r); 
+    SEDestroyPipeline(win, pipe);
     DestroyWindow(win);
     return 0;
 }

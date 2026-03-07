@@ -266,12 +266,15 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
         dep.srcStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     }
 
+
     for (u32 i = 0; i < pass->color_attachments.size; i++) {
 
         u32 imgIdx = pipe->resourceMapping.data[pass->color_attachments.data[i]];
         dynPush(pipe->frameBufferMapping, imgIdx);
 
         struct SEImageInfo *res = &info->resources.data[pass->color_attachments.data[i]].resourceInfo.img;
+
+
         descrips[i].format = res->format;
         descrips[i].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         descrips[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -325,7 +328,7 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
             .start = pipe->passVertMapping.size,
             .num = pass->vertex_buffers.size,
         },
-  };
+    };
 
     dynPush(pipe->framebufferInfos, framebuf);
 
@@ -337,6 +340,7 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
     vkCreateRenderPass(v->dev, &rpass, NULL, &final.pass.pass);
     final.pass.pipeline = CreatePipeline(v, final.pass.pass, &info->pipeline.data[pass->pipeline]);
 
+    dynPush(pipe->passes, final);
     ScratchArenaEnd(sc);
 }
 
@@ -348,14 +352,23 @@ void BuildFrameBuffers(SEVulkan *v, SERenderPipeline *pipe) {
         FrameBufferInfo *frame = &pipe->framebufferInfos.data[pipe->passes.data[i].pass.framebuffer];
         VkImageView *views = ArenaAlloc(&sc.arena, sizeof(VkImageView) * frame->num);
 
-        for (u32 j = 0; j < frame->num; j++) views[j] = pipe->images.data[j + frame->first].view;
+        v2u size = {UINT32_MAX, UINT32_MAX};
+        for (u32 j = 0; j < frame->num; j++) { 
+            views[j] = pipe->images.data[j + frame->first].view;
+            SEImage* img = &pipe->images.data[j + frame->first];
+            size.x = MIN(size.x, img->width);
+            size.y = MIN(size.y, img->height);
+        }
+
+        pipe->passes.data[i].size = size;
+        debuglog("frameBuffer Size = (%d, %d)", size.x, size.y);
 
         VkFramebufferCreateInfo info = {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .pAttachments = views,
             .attachmentCount = frame->num,
-            .width = v->swapchain.width,
-            .height = v->swapchain.height,
+            .width = size.x,
+            .height = size.y,
             .layers = 1,
             .renderPass = pipe->passes.data[i].pass.pass,
         };
@@ -412,4 +425,67 @@ BufAllocType GetBufAlloc(SEMemType mem, VkBufferUsageFlags usage) {
     }
 
     return BUF_ALLOC_INVALID;
+}
+
+void SEDestroyRenderPipelineInfo(SEwindow* win, SERenderPipelineInfo* r) {
+    SEVulkan *v = GetGraphics(win);
+    dynFree(r->resources);
+
+    for (u32 i = 0; i < r->passes.size; i++) {
+        dynFree(r->passes.data[i].color_attachments);
+        dynFree(r->passes.data[i].vertex_buffers);
+    }
+    dynFree(r->passes);
+
+    for (u32 i = 0; i < r->passes.size; i++) {
+        dynFree(r->pipeline.data[i].bindings);
+        dynFree(r->pipeline.data[i].attrs);
+        
+        vkDestroyShaderModule(v->dev, r->pipeline.data[i].vert, NULL);
+        vkDestroyShaderModule(v->dev, r->pipeline.data[i].frag, NULL);
+
+        vkDestroyPipelineLayout(v->dev, r->pipeline.data[i].layout, NULL);
+    }
+    dynFree(r->pipeline);
+}
+
+void SEDestroyPipeline(SEwindow* win, SERenderPipeline* p) {
+    SEVulkan *v = GetGraphics(win);
+
+    dynFree(p->resourceMapping);
+    dynFree(p->passVertMapping);
+    dynFree(p->frameBufferMapping);
+    dynFree(p->framebufferInfos);
+    dynFree(p->imgInfos);
+    dynFree(p->vertBuffers);
+
+    for (u32 i = 0; i < p->passes.size; i++) {
+        vkDestroyPipeline(v->dev, p->passes.data[i].pass.pipeline, NULL);
+        vkDestroyRenderPass(v->dev, p->passes.data[i].pass.pass, NULL);
+    }
+    dynFree(p->passes);
+
+    for (u32 i = 0; i < p->bufAllocators.size; i++) {
+        BufferAllocator* a = &p->bufAllocators.data[i];
+        if (!a->r.size) continue;
+        FreeDeviceMem(&v->memory.heaps.data[a->memid], a->r);
+        DestroyManager(a->m);
+        vkDestroyBuffer(v->dev, a->b, NULL);
+    }
+    dynFree(p->bufAllocators);
+    
+    for (u32 i = 0; i < p->framebuffers.size; i++) {
+        vkDestroyFramebuffer(v->dev, p->framebuffers.data[i], NULL);
+    }
+    dynFree(p->framebuffers);
+
+    for (u32 i = 0; i < p->images.size; i++) {
+        SEImage* img = &p->images.data[i];
+        FreeDeviceMem(&v->memory.heaps.data[img->memid], img->r);
+        vkDestroyImageView(v->dev, img->view, NULL);
+        vkDestroyImage(v->dev, img->img, NULL);
+    }
+    dynFree(p->images);
+
+
 }

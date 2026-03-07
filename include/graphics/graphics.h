@@ -40,6 +40,7 @@ typedef void (*SEDrawFunc)(SECmdBuf* p, void* pass);
 void DrawTriangle(SECmdBuf* buf, void* pass);
 
 SERenderPipelineInfo* SECreateRenderPipeline(SEwindow* win);
+void SEDestroyRenderPipelineInfo(SEwindow* win, SERenderPipelineInfo* r);
 
 u32 SEAddColorAttachment(SEwindow* win, SERenderPipelineInfo* r);
 u32 SENewPass(SEwindow* win, SERenderPipelineInfo* r);
@@ -53,6 +54,7 @@ void SESetShaderVertex(SEwindow* win, SERenderPipelineInfo* info, u32 pipe, SStr
 void SESetShaderFrag(SEwindow* win, SERenderPipelineInfo* info, u32 pipe, SString filename);
 
 SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *info);
+void SEDestroyPipeline(SEwindow* win, SERenderPipeline* p);
 
 void* SEMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID);
 void SEUnMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID);

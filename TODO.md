@@ -16,10 +16,19 @@
         - [X] build runtime Pipeline
         - [X] Shader Compilation
         - [X] FrameBuffer Info
+    - [X] Cleanup
+        - [X] Destroy Info
+        - [X] Destroy RenderPipeline
+        - [X] Destroy FrameBuffers
+        - [X] Destroy Images
     - [ ] Using Graph
         - [ ] Dispatch Commands
+            - [ ] Renderpass Begin
         - [ ] Resize
 - [ ] Improvements
+    - [ ] Get Framebuffer to use correct size
+        - [X] Store on Pass using shrinking algorithm
+        - [ ] Allow setting viewport? (maybe put this in render callback)
     - [ ] Pipeline Config Funcs
     - [ ] Descriptor Sets
         - [ ] Update Pipeline Layouts

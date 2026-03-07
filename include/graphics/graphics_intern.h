@@ -217,6 +217,8 @@ typedef struct Pass {
         } verts;
     } resources;
 
+    v2u size;
+
     void (*draw)();
     bool8 (*clear)();
 } Pass;
