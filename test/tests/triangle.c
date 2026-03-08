@@ -29,6 +29,7 @@ int main() {
 
     SERenderPipelineInfo* r = SECreateRenderPipeline(win);
     u32 color = SEAddColorAttachment(win, r);
+    u32 vbuf = SEAddVertexBuffer(win, r, SE_MEM_DYNAMIC, sizeof(u32) * 3);
 
     u32 pipeConfig = SEAddPipeline(win, r);
     SESetShaderFrag(win, r, pipeConfig, sstring("../shaders/basic.frag.spv"));
@@ -37,6 +38,7 @@ int main() {
     u32 color_pass = SENewPass(win, r);
     SEWriteColorAttachment(win, r, color_pass, color);
     SEUsePipeline(r, color_pass, pipeConfig);
+    SEUseVertexBuffer(win, r, color_pass, vbuf);
 
     SESetBackBuffer(r, color);
 
@@ -66,11 +68,13 @@ int main() {
 
         if (win->keystate[KEY_ESC] == KEY_PRESSED) break;
 
+        SEExecutePipeline(win, pipe);
+
         clock_gettime(CLOCK_REALTIME, &next);
         double curr_time = (next.tv_sec - start.tv_sec) + ((double)(next.tv_nsec - start.tv_nsec))/(1000 * 1000 * 1000);
         frametime = 0.999 * frametime + 0.001 * curr_time;
         start = next;
-
+    
 
         if (counter <= 0) {
             debuglog("Fps: %f", 1/frametime);

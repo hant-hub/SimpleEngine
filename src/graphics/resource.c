@@ -136,7 +136,7 @@ SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat format, u32 wi
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .arrayLayers = 1,
         .mipLevels = 1,
-        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | usage,
+        .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | usage,
         .queueFamilyIndexCount = 1 + (v->queues.gfam != v->queues.tfam),
         .pQueueFamilyIndices = (u32[]){v->queues.gfam, v->queues.tfam},
     };

@@ -36,6 +36,20 @@ u32 SEAddColorAttachment(SEwindow *win, SERenderPipelineInfo *r) {
     return r->resources.size - 1;
 }
 
+u32 SEAddVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 size) {
+    dynPush(r->resources, (Resource){0});
+    dynBack(r->resources) = (Resource) {
+        .type = RESOURCE_BUFFER,
+        .resourceInfo.buf = {
+            .memType = t,
+            .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            .size = size,
+        },
+    };
+
+    return r->resources.size - 1;
+}
+
 u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r) {
     SEVulkan *v = GetGraphics(win);
     dynPush(r->pipeline, (PipelineInfo){0});
@@ -155,10 +169,18 @@ void SEUsePipeline(SERenderPipelineInfo *r, u32 pass, u32 pipe) { r->passes.data
 
 void SEWriteColorAttachment(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID) {
     dynPush(r->passes.data[pass].color_attachments, resourceID);
-    // dynPush(r->resources.data[resourceID].writes, pass);
 }
 
-void SESetBackBuffer(SERenderPipelineInfo *r, u32 resourceID) { r->backbuffer = resourceID; }
+void SEUseVertexBuffer(SEwindow* win, SERenderPipelineInfo *r, u32 pass, u32 resourceID) {
+    dynPush(r->passes.data[pass].vertex_buffers, resourceID);
+}
+
+void SESetBackBuffer(SERenderPipelineInfo *r, u32 resourceID) {
+    r->backbuffer = resourceID;
+    r->resources.data[resourceID].resourceInfo.img.swapRel = TRUE;
+    r->resources.data[resourceID].resourceInfo.img.width = 1.0f;
+    r->resources.data[resourceID].resourceInfo.img.height = 1.0f;
+}
 
 void CreateBuffer(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 resource);
 void CreateImage(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 resource);
@@ -167,6 +189,7 @@ BufAllocType GetBufAlloc(SEMemType mem, VkBufferUsageFlags usage);
 void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 pass);
 
 void BuildFrameBuffers(SEVulkan *v, SERenderPipeline *pipe);
+void DestroyFrameBuffers(SEVulkan *v, SERenderPipeline *pipe);
 
 SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *info) {
     SEVulkan *v = GetGraphics(win);
@@ -228,7 +251,270 @@ SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *info) {
 
     BuildFrameBuffers(v, pipe);
 
+    // Command Buffers
+    VkCommandBufferAllocateInfo cmdInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = v->graphics.pool,
+        .commandBufferCount = v->swapchain.imgcount,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+    };
+
+    pipe->cmdBufs = Alloc(win->mem, sizeof(VkCommandBuffer) * v->swapchain.imgcount);
+    vkAllocateCommandBuffers(v->dev, &cmdInfo, pipe->cmdBufs);
+
     return pipe;
+}
+
+void SEExecutePipeline(SEwindow *win, SERenderPipeline *p) {
+    SEVulkan *v = GetGraphics(win);
+
+    static u32 counter = 0;
+    static u32 prev = 0;
+    prev = counter;
+    counter = (counter + 1) % v->swapchain.imgcount;
+
+    vkWaitForFences(v->dev, 1, &v->inFlight, TRUE, UINT32_MAX);
+
+    vkResetCommandBuffer(p->cmdBufs[counter], 0);
+
+    u32 idx = 0;
+    VkResult result;
+    result = vkAcquireNextImageKHR(v->dev, v->swapchain.swap, UINT32_MAX, v->imgAvalible.data[counter], NULL, &idx);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        vkDeviceWaitIdle(v->dev);
+        CreateSwapChain(win, v, win->mem);
+        DestroyFrameBuffers(v, p);
+
+        for (u32 i = 0; i < p->imgInfos.size; i++) {
+            struct SEImageInfo *info = &p->imgInfos.data[i];
+            if (!info->swapRel)
+                continue;
+            SEImage *img = &p->images.data[i];
+            FreeDeviceMem(&v->memory.heaps.data[img->memid], img->r);
+            vkDestroyImageView(v->dev, img->view, NULL);
+            vkDestroyImage(v->dev, img->img, NULL);
+
+            p->images.data[i] = AllocImage(v, info->usage, info->format, v->swapchain.width * info->width,
+                                           v->swapchain.height * info->height);
+        }
+
+        BuildFrameBuffers(v, p);
+        // return;
+    }
+
+    // reset after possible resize
+    vkResetFences(v->dev, 1, &v->inFlight);
+
+    VkCommandBufferBeginInfo cmdBeg = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    };
+    vkBeginCommandBuffer(p->cmdBufs[counter], &cmdBeg);
+
+    for (u32 i = 0; i < p->passes.size; i++) {
+        Pass *pass = &p->passes.data[i];
+
+        VkRenderPassBeginInfo rbeg = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .renderPass = pass->pass.pass,
+            .framebuffer = p->framebuffers.data[pass->pass.framebuffer],
+            .renderArea = {
+                .offset = {0, 0},
+                .extent = {pass->size.x, pass->size.y},
+            },
+            .clearValueCount = 1,
+            .pClearValues = &(VkClearValue){.color.float32 = {0, 0, 0}},
+        };
+
+        vkCmdBeginRenderPass(p->cmdBufs[counter], &rbeg, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(p->cmdBufs[counter], VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeline);
+
+        VkViewport view = {
+            .x = 0,
+            .y = 0,
+            .width = pass->size.x,
+            .height = pass->size.y,
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f,
+        };
+        vkCmdSetViewport(p->cmdBufs[counter], 0, 1, &view);
+
+        VkRect2D scissor = {
+            .offset = {0, 0},
+            .extent = {pass->size.x, pass->size.y},
+        };
+        vkCmdSetScissor(p->cmdBufs[counter], 0, 1, &scissor);
+
+        ScratchArena sc = ScratchArenaGet(NULL);
+        if (pass->resources.verts.num) {
+            VkBuffer *vertBuffers = ArenaAlloc(&sc.arena, sizeof(VkBuffer) * pass->resources.verts.num);
+            VkDeviceSize *vertOffsets = ArenaAlloc(&sc.arena, sizeof(VkDeviceSize) * pass->resources.verts.num);
+
+            for (u32 i = 0; i < pass->resources.verts.num; i++) {
+                u32 memid = p->vertBuffers.data[pass->resources.verts.start].parent;
+                vertBuffers[i] = p->bufAllocators.data[memid].b;
+                vertOffsets[i] = p->vertBuffers.data[pass->resources.verts.start].r.offset;
+            }
+            vkCmdBindVertexBuffers(p->cmdBufs[counter], 0, pass->resources.verts.num, vertBuffers, vertOffsets);
+        }
+        ScratchArenaEnd(sc);
+
+        // pass->draw();
+        vkCmdDraw(p->cmdBufs[counter], 3, 1, 0, 0);
+
+        vkCmdEndRenderPass(p->cmdBufs[counter]);
+    }
+
+    SEImage *src = &p->images.data[p->backbuffer];
+
+    vkCmdPipelineBarrier(p->cmdBufs[counter],
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0,
+            NULL,
+            0,
+            NULL,
+            2,
+            (VkImageMemoryBarrier[]){ 
+                (VkImageMemoryBarrier){
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .image = src->img,
+                    .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .dstAccessMask = 0,
+                    .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseArrayLayer = 0,
+                        .baseMipLevel = 0,
+                        .layerCount = 1,
+                        .levelCount = 1,
+                    },
+                },
+                (VkImageMemoryBarrier){
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .image = v->swapchain.imgs[idx],
+                    .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .dstAccessMask = 0,
+                    .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseArrayLayer = 0,
+                        .baseMipLevel = 0,
+                        .layerCount = 1,
+                        .levelCount = 1,
+                    },
+                },
+            });
+
+    VkImageBlit b = {
+        .srcOffsets = {
+            {0, 0, 0},
+            {src->width, src->height, 1},
+        },
+        .srcSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+            .mipLevel = 0,
+        },
+        .dstOffsets = {
+            {0, 0, 0},
+            {v->swapchain.width, v->swapchain.height, 1},
+        },
+        .dstSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+            .mipLevel = 0,
+        },
+    };
+
+    vkCmdBlitImage(p->cmdBufs[counter], src->img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, v->swapchain.imgs[idx],
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &b, VK_FILTER_NEAREST);
+
+    vkCmdPipelineBarrier(p->cmdBufs[counter],
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            0,
+            0,
+            NULL,
+            0,
+            NULL,
+            1,
+            &(VkImageMemoryBarrier){
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = v->swapchain.imgs[idx],
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = 0,
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseArrayLayer = 0,
+                    .baseMipLevel = 0,
+                    .layerCount = 1,
+                    .levelCount = 1,
+                },
+            });
+
+    vkEndCommandBuffer(p->cmdBufs[counter]);
+
+    VkPipelineStageFlagBits stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSubmitInfo subInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &p->cmdBufs[counter],
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &v->imgAvalible.data[counter],
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &v->renderfinished.data[idx],
+        .pWaitDstStageMask = &stages,
+    };
+
+    vkQueueSubmit(v->queues.graphics, 1, &subInfo, v->inFlight);
+
+    VkPresentInfoKHR presentInfo = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &v->renderfinished.data[idx],
+        .swapchainCount = 1,
+        .pSwapchains = &v->swapchain.swap,
+        .pImageIndices = &idx,
+    };
+
+    result = vkQueuePresentKHR(v->queues.present, &presentInfo);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || win->resize) {
+        vkDeviceWaitIdle(v->dev);
+        CreateSwapChain(win, v, win->mem);
+        DestroyFrameBuffers(v, p);
+
+        for (u32 i = 0; i < p->imgInfos.size; i++) {
+            struct SEImageInfo *info = &p->imgInfos.data[i];
+            if (!info->swapRel)
+                continue;
+            SEImage *img = &p->images.data[i];
+            FreeDeviceMem(&v->memory.heaps.data[img->memid], img->r);
+            vkDestroyImageView(v->dev, img->view, NULL);
+            vkDestroyImage(v->dev, img->img, NULL);
+
+            p->images.data[i] = AllocImage(v, info->usage, info->format, v->swapchain.width * info->width,
+                                           v->swapchain.height * info->height);
+        }
+
+        BuildFrameBuffers(v, p);
+        win->resize = FALSE;
+        return;
+    }
 }
 
 void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 pidx) {
@@ -266,14 +552,12 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
         dep.srcStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     }
 
-
     for (u32 i = 0; i < pass->color_attachments.size; i++) {
 
         u32 imgIdx = pipe->resourceMapping.data[pass->color_attachments.data[i]];
         dynPush(pipe->frameBufferMapping, imgIdx);
 
         struct SEImageInfo *res = &info->resources.data[pass->color_attachments.data[i]].resourceInfo.img;
-
 
         descrips[i].format = res->format;
         descrips[i].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -353,9 +637,9 @@ void BuildFrameBuffers(SEVulkan *v, SERenderPipeline *pipe) {
         VkImageView *views = ArenaAlloc(&sc.arena, sizeof(VkImageView) * frame->num);
 
         v2u size = {UINT32_MAX, UINT32_MAX};
-        for (u32 j = 0; j < frame->num; j++) { 
+        for (u32 j = 0; j < frame->num; j++) {
             views[j] = pipe->images.data[j + frame->first].view;
-            SEImage* img = &pipe->images.data[j + frame->first];
+            SEImage *img = &pipe->images.data[j + frame->first];
             size.x = MIN(size.x, img->width);
             size.y = MIN(size.y, img->height);
         }
@@ -381,6 +665,13 @@ void BuildFrameBuffers(SEVulkan *v, SERenderPipeline *pipe) {
     }
 
     ScratchArenaEnd(sc);
+}
+
+void DestroyFrameBuffers(SEVulkan *v, SERenderPipeline *pipe) {
+    for (u32 i = 0; i < pipe->framebuffers.size; i++) {
+        vkDestroyFramebuffer(v->dev, pipe->framebuffers.data[i], NULL);
+    }
+    pipe->framebuffers.size = 0;
 }
 
 void CreateBuffer(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 resource) {
@@ -427,8 +718,9 @@ BufAllocType GetBufAlloc(SEMemType mem, VkBufferUsageFlags usage) {
     return BUF_ALLOC_INVALID;
 }
 
-void SEDestroyRenderPipelineInfo(SEwindow* win, SERenderPipelineInfo* r) {
+void SEDestroyRenderPipelineInfo(SEwindow *win, SERenderPipelineInfo *r) {
     SEVulkan *v = GetGraphics(win);
+    vkDeviceWaitIdle(v->dev);
     dynFree(r->resources);
 
     for (u32 i = 0; i < r->passes.size; i++) {
@@ -440,7 +732,7 @@ void SEDestroyRenderPipelineInfo(SEwindow* win, SERenderPipelineInfo* r) {
     for (u32 i = 0; i < r->passes.size; i++) {
         dynFree(r->pipeline.data[i].bindings);
         dynFree(r->pipeline.data[i].attrs);
-        
+
         vkDestroyShaderModule(v->dev, r->pipeline.data[i].vert, NULL);
         vkDestroyShaderModule(v->dev, r->pipeline.data[i].frag, NULL);
 
@@ -449,8 +741,11 @@ void SEDestroyRenderPipelineInfo(SEwindow* win, SERenderPipelineInfo* r) {
     dynFree(r->pipeline);
 }
 
-void SEDestroyPipeline(SEwindow* win, SERenderPipeline* p) {
+void SEDestroyPipeline(SEwindow *win, SERenderPipeline *p) {
     SEVulkan *v = GetGraphics(win);
+    vkDeviceWaitIdle(v->dev);
+
+    Free(win->mem, p->cmdBufs, v->swapchain.imgcount);
 
     dynFree(p->resourceMapping);
     dynFree(p->passVertMapping);
@@ -466,26 +761,23 @@ void SEDestroyPipeline(SEwindow* win, SERenderPipeline* p) {
     dynFree(p->passes);
 
     for (u32 i = 0; i < p->bufAllocators.size; i++) {
-        BufferAllocator* a = &p->bufAllocators.data[i];
-        if (!a->r.size) continue;
+        BufferAllocator *a = &p->bufAllocators.data[i];
+        if (!a->r.size)
+            continue;
         FreeDeviceMem(&v->memory.heaps.data[a->memid], a->r);
         DestroyManager(a->m);
         vkDestroyBuffer(v->dev, a->b, NULL);
     }
     dynFree(p->bufAllocators);
-    
-    for (u32 i = 0; i < p->framebuffers.size; i++) {
-        vkDestroyFramebuffer(v->dev, p->framebuffers.data[i], NULL);
-    }
+
+    DestroyFrameBuffers(v, p);
     dynFree(p->framebuffers);
 
     for (u32 i = 0; i < p->images.size; i++) {
-        SEImage* img = &p->images.data[i];
+        SEImage *img = &p->images.data[i];
         FreeDeviceMem(&v->memory.heaps.data[img->memid], img->r);
         vkDestroyImageView(v->dev, img->view, NULL);
         vkDestroyImage(v->dev, img->img, NULL);
     }
     dynFree(p->images);
-
-
 }

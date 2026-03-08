@@ -72,7 +72,6 @@ typedef struct SEVulkan {
     VkDevice dev; 
     VkSurfaceKHR surf;
     VkCommandPool pool;
-    VkCommandBuffer buf;
 
     dynArray(VkSemaphore) imgAvalible;
     dynArray(VkSemaphore) renderfinished;
@@ -94,6 +93,16 @@ typedef struct SEVulkan {
         VkBuffer buf;
         void* ptr;
     } transfer;
+
+    struct {
+        VkCommandPool pool;
+        VkCommandBuffer cmd;
+    } graphics;
+
+    struct {
+        VkCommandPool pool;
+        VkCommandBuffer cmd;
+    } present;
 
     struct {
         //Will be the same if
@@ -238,8 +247,9 @@ typedef enum BufAllocType {
 typedef struct SERenderPipeline {
     u32 backbuffer; // image to blit to swapchain img
 
-    dynArray(BufferAllocator) bufAllocators;
+    VkCommandBuffer* cmdBufs;
 
+    dynArray(BufferAllocator) bufAllocators;
     dynArray(Pass) passes;
 
     dynArray(u32) resourceMapping; //maps resourceID to resource ie: vertBuffer or image
@@ -287,5 +297,7 @@ void DestroyVulkan(SEVulkan g, Allocator a);
 //helpers
 VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r, PipelineInfo* info);
 VkShaderModule CompileShader(SEVulkan* v, SString data);
+
+void CreateSwapChain(SEwindow* win, SEVulkan* g, Allocator a);
 
 #endif

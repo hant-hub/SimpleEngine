@@ -120,7 +120,7 @@ void CreateSwapChain(SEwindow* win, SEVulkan* g, Allocator a) {
             .imageColorSpace = g->swapchain.format.colorSpace,
             .imageExtent = (VkExtent2D){g->swapchain.width, g->swapchain.height},
             .imageArrayLayers = 1,
-            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 
             .preTransform = g->swapInfo.cap.currentTransform,
             .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
             .presentMode = g->swapchain.mode,
@@ -497,10 +497,15 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         vkMapMemory(g->dev, g->transfer.mem, 0, PAGE_SIZE, 0, &g->transfer.ptr);
 
 
+    }
+
+    //Allocate Command Pools
+    {
+        //Transfer Queue
         VkCommandPoolCreateInfo poolInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
             .queueFamilyIndex = g->queues.tfam,
-            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         };
         vkCreateCommandPool(g->dev, &poolInfo, NULL, &g->transfer.pool);
         
@@ -511,6 +516,18 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         };
         vkAllocateCommandBuffers(g->dev, &cmdInfo, &g->transfer.cmd);
+
+        //Graphics Queue
+        poolInfo.queueFamilyIndex = g->queues.gfam;
+        vkCreateCommandPool(g->dev, &poolInfo, NULL, &g->graphics.pool);
+        cmdInfo.commandPool = g->graphics.pool;
+        vkAllocateCommandBuffers(g->dev, &cmdInfo, &g->graphics.cmd);
+
+        //Present Queue
+        poolInfo.queueFamilyIndex = g->queues.pfam;
+        vkCreateCommandPool(g->dev, &poolInfo, NULL, &g->present.pool);
+        cmdInfo.commandPool = g->present.pool;
+        vkAllocateCommandBuffers(g->dev, &cmdInfo, &g->present.cmd);
     }
 
     //handle settings
@@ -584,6 +601,8 @@ void DestroyVulkan(SEVulkan g, Allocator a) {
 
     vkDestroyCommandPool(g.dev, g.pool, NULL);
     vkDestroyCommandPool(g.dev, g.transfer.pool, NULL);
+    vkDestroyCommandPool(g.dev, g.graphics.pool, NULL);
+    vkDestroyCommandPool(g.dev, g.present.pool, NULL);
 
     for (u32 i = 0; i < g.swapchain.imgcount; i++) {
         vkDestroyImageView(g.dev, g.swapchain.views[i], NULL);

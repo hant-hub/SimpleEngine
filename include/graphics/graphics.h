@@ -45,7 +45,9 @@ void SEDestroyRenderPipelineInfo(SEwindow* win, SERenderPipelineInfo* r);
 u32 SEAddColorAttachment(SEwindow* win, SERenderPipelineInfo* r);
 u32 SENewPass(SEwindow* win, SERenderPipelineInfo* r);
 u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r);
+u32 SEAddVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 size);
 
+void SEUseVertexBuffer(SEwindow* win, SERenderPipelineInfo *r, u32 pass, u32 resourceID);
 void SEWriteColorAttachment(SEwindow* win, SERenderPipelineInfo* r, u32 pass, u32 resourceID);
 void SESetBackBuffer(SERenderPipelineInfo* r, u32 resourceID);
 void SEUsePipeline(SERenderPipelineInfo* r, u32 pass, u32 pipe);
@@ -54,6 +56,7 @@ void SESetShaderVertex(SEwindow* win, SERenderPipelineInfo* info, u32 pipe, SStr
 void SESetShaderFrag(SEwindow* win, SERenderPipelineInfo* info, u32 pipe, SString filename);
 
 SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *info);
+void SEExecutePipeline(SEwindow *win, SERenderPipeline *p);
 void SEDestroyPipeline(SEwindow* win, SERenderPipeline* p);
 
 void* SEMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID);

@@ -21,18 +21,33 @@
         - [X] Destroy RenderPipeline
         - [X] Destroy FrameBuffers
         - [X] Destroy Images
-    - [ ] Using Graph
-        - [ ] Dispatch Commands
-            - [ ] Renderpass Begin
-        - [ ] Resize
+    - [X] Using Graph
+        - [X] Dispatch Commands
+            - [X] Renderpass Begin
+            - [X] Bind Vertex + Pipeline
+            - [X] Pipeline Barrier
+            - [X] Swapchain TRANSFER_DST
+        - [X] Resize
 - [ ] Improvements
+    - [ ] Vertex Buffer Support
+        - [X] Add Buffer
+        - [ ] Get Buffer Handle (void* for dyn and Transfer op for vert data)
+        - [ ] Add Vertex Spec
+            - [ ] Update Vertex Spec to handle more data
+                - [ ] vec2
+                - [ ] vec3
+                - [ ] vec4
+    - [ ] Index Buffer Support
+        - [ ] Add Buffer
+        - [ ] Alter Draw command to use index buffer
     - [ ] Get Framebuffer to use correct size
         - [X] Store on Pass using shrinking algorithm
-        - [ ] Allow setting viewport? (maybe put this in render callback)
+        - [ ] Allow setting viewport (Put on Pass)
     - [ ] Pipeline Config Funcs
     - [ ] Descriptor Sets
         - [ ] Update Pipeline Layouts
     - [ ] Shader Storage (only read and compile once)
+    - [ ] Texture Data
 
 
 ## Quality of Life:
@@ -67,45 +82,6 @@
 - [ ] Code Introspection and Generation
     - [ ] Generate Struct descriptions
     - [ ] Dynamic print
-
-## Graphics:
-- [ ] New Resource Allocation
-    - [ ] Flags for Memory Types
-        - [ ] Textures
-        - [X] Vertex Buffers
-        - [ ] Index Buffers
-        - [ ] Render Targets
-    - [ ] Memory Management
-        - [X] Allocator (free list based)
-        - [ ] alignment calcs
-        - [ ] Memory Heap scanning
-        - [ ] Alignment and Resource fixing
-    - [X] Buffers
-        - [X] Allocate
-        - [X] Host Coherent
-        - [X] Transfer Queue (just use pipeline barrier lol)
-    - [ ] Descriptor Sets
-    - [ ] Pipeline Layouts
-        - [ ] Store Resource type in RenderGraph
-    - [ ] Textures
-        - [ ] Host Coherent (what you'd use for sand sim)
-        - [ ] Transfer Queue
-    - [ ] Integrate with Rendergraph
-- [ ] Add Uniform analysis
-- [ ] Draw Commands
-    - [ ] Raw Draw (no indicies)
-    - [ ] Draw with indicies
-    - [ ] Bind Buffer (vertex, index, etc)
-- [ ] Rendergraph Improvements
-    - [ ] Pipeline Customization
-    - [ ] Multiqueue support
-    - [ ] Resize and swapchain recreation
-    - [ ] Merge compatible passes into single Renderpass
-    - [ ] Renderpass Reordering
-    - [ ] Offline baking
-- [ ] Compute considerations
-    - [ ] Maybe add second queue? (will require additional synchronization)
-    - [ ] Renderpass type
 
 ## Core:
 - [ ] Handle all events
