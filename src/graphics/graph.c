@@ -1,7 +1,3 @@
-// #include "cutils.h"
-// #include "ds.h"s
-// #include "se.h"
-// #include "vulkan/vulkan_core.h"
 #include <graphics/graphics_intern.h>
 
 SERenderPipelineInfo *SECreateRenderPipeline(SEwindow *win) {
@@ -48,6 +44,19 @@ u32 SEAddVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 s
     };
 
     return r->resources.size - 1;
+}
+
+void* SERetrieveDynVertBuf(SEwindow* win, SERenderPipeline* p, u32 buffer) {
+    SEVulkan *v = GetGraphics(win);
+
+    u32 idx = p->resourceMapping.data[buffer];
+
+    SEBuffer* b = &p->vertBuffers.data[idx];
+    BufferAllocator* a = &p->bufAllocators.data[b->parent];
+    void* out = NULL;
+    vkMapMemory(v->dev, v->memory.mem.data[a->memid], b->r.offset + a->r.offset, b->r.size, 0, &out);
+
+    return out;
 }
 
 u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r) {
@@ -154,6 +163,53 @@ void SESetShaderFrag(SEwindow *win, SERenderPipelineInfo *info, u32 pipe, SStrin
 
     info->pipeline.data[pipe].frag = CompileShader(v, buffer);
     ScratchArenaEnd(sc);
+}
+
+void SEAddVertexBinding(SERenderPipelineInfo *rinfo, u32 pass, SEBindingType type, SEStructSpec *layout, u32 numMembers) {
+    //next binding, plus increment
+    PipelineInfo* p = &rinfo->pipeline.data[pass];
+    u32 binding = 0;// dynBack(rinfo->passes).vertInfo.numBindings++;
+    u32 size = 0;
+
+    VkVertexInputBindingDescription desc = {
+        .binding = binding,
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX, 
+    };
+
+    if (type == SE_BINDING_INSTANCE)
+        desc.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+
+    for (u32 i = 0; i < numMembers; i++) {
+        SEStructSpec member = layout[i];
+
+        VkVertexInputAttributeDescription vertAttr = {
+            .binding = binding,
+            .location = i,
+            .offset = member.offset,
+        };
+
+        switch (member.type) {
+            case SE_VAR_TYPE_U32: 
+                vertAttr.format = VK_FORMAT_R32_UINT;
+                break;
+            case SE_VAR_TYPE_F32: 
+                vertAttr.format = VK_FORMAT_R32_SFLOAT;
+                break;
+            case SE_VAR_TYPE_V2F: 
+                vertAttr.format = VK_FORMAT_R32G32_SFLOAT;
+                break;
+            case SE_VAR_TYPE_V3F: 
+                vertAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
+                break;
+            default: todo();
+        }
+
+        dynPush(p->attrs, vertAttr);
+        size += member.size;
+    }
+
+    desc.stride = size;
+    dynPush(p->bindings, desc);
 }
 
 u32 SENewPass(SEwindow *win, SERenderPipelineInfo *r) {

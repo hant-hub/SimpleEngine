@@ -25,6 +25,11 @@ typedef struct MemoryRange {
     u32 size;
 } MemoryRange;
 
+typedef enum SEBindingType {
+    SE_BINDING_VERTEX,
+    SE_BINDING_INSTANCE,
+} SEBindingType;
+
 typedef struct SEwindow SEwindow;
 
 //Rendergraph
@@ -54,6 +59,8 @@ void SEUsePipeline(SERenderPipelineInfo* r, u32 pass, u32 pipe);
 
 void SESetShaderVertex(SEwindow* win, SERenderPipelineInfo* info, u32 pipe, SString filename);
 void SESetShaderFrag(SEwindow* win, SERenderPipelineInfo* info, u32 pipe, SString filename);
+void SEAddVertexBinding(SERenderPipelineInfo *rinfo, u32 pass, SEBindingType type, SEStructSpec *layout, u32 numMembers);
+void* SERetrieveDynVertBuf(SEwindow* win, SERenderPipeline* p, u32 buffer);
 
 SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *info);
 void SEExecutePipeline(SEwindow *win, SERenderPipeline *p);
@@ -65,10 +72,5 @@ void SEUnMapVertBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID);
 void SEUploadBuffer(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* data, u32 size);
 void SEDrawPipeline(SEwindow* win, SERenderPipeline* r);
 
-//descriptors
-typedef enum SEBindingType {
-    SE_BINDING_VERTEX,
-    SE_BINDING_INSTANCE,
-} SEBindingType;
 
 #endif

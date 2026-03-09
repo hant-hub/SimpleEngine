@@ -61,7 +61,8 @@ typedef enum KeyCodes {
     // special keys
     KEY_ESC,
     KEY_TAB,
-    KEY_SHIFT,
+    KEY_LSHIFT,
+    KEY_RSHIFT,
     KEY_CTRL,
     KEY_ALT,
     KEY_BACKSPACE,

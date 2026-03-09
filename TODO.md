@@ -1,7 +1,7 @@
 # TODOS:
 
 ## Next Time
-- [ ] RenderGraph Rewrite
+- [X] RenderGraph Rewrite
     - [X] Resource Helpers
         - [X] Build Pipeline From Struct
         - [X] Pipeline Layout 
@@ -32,6 +32,8 @@
     - [ ] Vertex Buffer Support
         - [X] Add Buffer
         - [ ] Get Buffer Handle (void* for dyn and Transfer op for vert data)
+            - [X] void* for dyn
+            - [ ] transfer for static
         - [ ] Add Vertex Spec
             - [ ] Update Vertex Spec to handle more data
                 - [ ] vec2

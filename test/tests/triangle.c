@@ -25,6 +25,16 @@ int main() {
         },
     };
 
+    SEStructSpec vertSpec[] = {
+        (SEStructSpec){
+            .name = sstring("x"),
+            .offset = 0,
+            .type = SE_VAR_TYPE_U32,
+            .size = sizeof(u32),
+        },
+    };
+
+
     SEwindow* win = CreateWindow(GlobalAllocator, "test", &settings);
 
     SERenderPipelineInfo* r = SECreateRenderPipeline(win);
@@ -33,7 +43,8 @@ int main() {
 
     u32 pipeConfig = SEAddPipeline(win, r);
     SESetShaderFrag(win, r, pipeConfig, sstring("../shaders/basic.frag.spv"));
-    SESetShaderVertex(win, r, pipeConfig, sstring("../shaders/basic2.vert.spv"));
+    SESetShaderVertex(win, r, pipeConfig, sstring("../shaders/basic.vert.spv"));
+    SEAddVertexBinding(r, pipeConfig, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
     
     u32 color_pass = SENewPass(win, r);
     SEWriteColorAttachment(win, r, color_pass, color);
@@ -44,6 +55,10 @@ int main() {
 
     SERenderPipeline* pipe = SECompilePipeline(win, r);
 
+    u32* verts = SERetrieveDynVertBuf(win, pipe, vbuf);
+    verts[0] = 0;
+    verts[1] = 1;
+    verts[2] = 2;
 
     /*
         RenderPipeline r = CreateRenderPipeline(win);
@@ -68,18 +83,28 @@ int main() {
 
         if (win->keystate[KEY_ESC] == KEY_PRESSED) break;
 
+        static bool8 active = TRUE;
+        if (win->keystate[KEY_A] == KEY_PRESSED && active) {
+            verts[0] = (verts[0] + 1) % 3;
+            verts[1] = (verts[1] + 1) % 3;
+            verts[2] = (verts[2] + 1) % 3;
+            active = FALSE;
+        }
+        if (win->keystate[KEY_A] == KEY_RELEASED) 
+            active = TRUE;
+
         SEExecutePipeline(win, pipe);
 
         clock_gettime(CLOCK_REALTIME, &next);
         double curr_time = (next.tv_sec - start.tv_sec) + ((double)(next.tv_nsec - start.tv_nsec))/(1000 * 1000 * 1000);
-        frametime = 0.999 * frametime + 0.001 * curr_time;
+        frametime = 0.9 * frametime + 0.1 * curr_time;
         start = next;
     
 
         if (counter <= 0) {
             debuglog("Fps: %f", 1/frametime);
 
-            counter = 1.0/12.0;
+            counter = 6.0/12.0;
         }
 
         counter -= curr_time;

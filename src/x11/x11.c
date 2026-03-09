@@ -121,40 +121,54 @@ void Poll(SEwindow *handle) {
             case KeyRelease: {
                 XKeyEvent *press = (XKeyPressedEvent *)&e;
 
-
-                //debuglog("key: %n", XKeycodeToKeysym(win->disp, press->keycode, 0));
-
-                if (press->keycode == XKeysymToKeycode(win->disp, XK_Escape)) {
-                    handle->keystate[KEY_ESC] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
-                    break;
-                }
-
-                if (press->keycode == XKeysymToKeycode(win->disp, XK_Super_L)) {
-                    handle->keystate[KEY_SUPER] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
-                    break;
-                }
-
+                KeySym key = XLookupKeysym(press, 0);
 
                 u32 handled = 0;
-                for (u32 i = 0; i < 26; i++) {
-                    if (press->keycode == XKeysymToKeycode(win->disp, XK_A + i)) {
-                        handle->keystate[KEY_A + i] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
+                switch (key) {
+                    case XK_Escape:
+                        handle->keystate[KEY_ESC] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
                         handled = 1;
                         break;
-                    }
+
+                    case XK_Super_L:
+                        handle->keystate[KEY_SUPER] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
+                        handled = 1;
+                        break;
+
+                    case XK_Shift_L:
+                        handle->keystate[KEY_LSHIFT] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
+                        handled = 1;
+                        break;
+
+                    case XK_Shift_R:
+                        handle->keystate[KEY_RSHIFT] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
+                        handled = 1;
+                        break;
+
+                    default: break;
                 }
                 if (handled) break;
 
-                for (u32 i = 0; i < 10; i++) {
-                    if (press->keycode == XKeysymToKeycode(win->disp, XK_0 + i)) {
-                        handle->keystate[KEY_0 + i] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
-                        handled = 1;
-                        break;
-                    }
+
+                //alphabet
+                i32 test = key - XK_a;
+                if (test >= 0 && test < 26) {
+                    handle->keystate[KEY_A + test] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
+                    handled = 1;
+                    break;
                 }
                 if (handled) break;
 
-                debugwarn("keycode %d, %d not yet supported", press->keycode, 'a');
+                //numbers
+                test = key - XK_0;
+                if (test >= 0 && test < 10) {
+                    handle->keystate[KEY_0 + test] = e.type == KeyPress ? KEY_PRESSED : KEY_RELEASED;
+                    handled = 1;
+                    break;
+                }
+                if (handled) break;
+
+                debugwarn("key %n not yet supported", XKeysymToString(key));
             } break;
             case ConfigureNotify:
             {
@@ -178,7 +192,7 @@ void Poll(SEwindow *handle) {
             case MapNotify:
             case Expose:
             {
-                //debuglog("Expose Event");
+                debuglog("Expose Event");
             } break;
 
             default: debugerr("Unsupported Event: %d", e.type); break;
