@@ -31,9 +31,9 @@
 - [ ] Improvements
     - [ ] Vertex Buffer Support
         - [X] Add Buffer
-        - [ ] Get Buffer Handle (void* for dyn and Transfer op for vert data)
+        - [X] Get Buffer Handle (void* for dyn and Transfer op for vert data)
             - [X] void* for dyn
-            - [ ] transfer for static
+            - [X] transfer for static
         - [ ] Add Vertex Spec
             - [ ] Update Vertex Spec to handle more data
                 - [ ] vec2

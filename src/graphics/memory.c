@@ -165,37 +165,36 @@ void DestroyManager(MemoryManager m) {
 #include <string.h>
 
 //synchronous memcpy
-void CPUtoGPUBufferMemcpy(SEwindow* win, SEBuffer dst, void* src, u32 size) {
-//    SEVulkan* v = GetGraphics(win);
-//
-//    u32 remaining = size;
-//    BufferAllocator alloc = v->bufAllocators.data[dst.parent];
-//    while (remaining) {
-//        u32 num_bytes = MIN(PAGE_SIZE, remaining);
-//        memcpy(v->transfer.ptr, src + (size - remaining), num_bytes); 
-//        
-//        VkCommandBufferBeginInfo info = {
-//            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-//        };
-//        vkQueueWaitIdle(v->queues.transfer);
-//
-//        vkResetCommandBuffer(v->transfer.cmd, 0);
-//        vkBeginCommandBuffer(v->transfer.cmd, &info);
-//        VkBufferCopy cpy = {
-//            .size = num_bytes,
-//            .srcOffset = 0,
-//            .dstOffset = dst.r.offset + (size - remaining)
-//        };
-//        vkCmdCopyBuffer(v->transfer.cmd, v->transfer.buf, alloc.b, 1, &cpy);
-//        vkEndCommandBuffer(v->transfer.cmd);
-//
-//        VkSubmitInfo submit = {
-//            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-//            .commandBufferCount = 1,
-//            .pCommandBuffers = &v->transfer.cmd,
-//        };
-//        vkQueueSubmit(v->queues.transfer, 1, &submit, VK_NULL_HANDLE);
-//
-//        remaining -= num_bytes;
-//    }
+void CPUtoGPUBufferMemcpy(SEwindow* win, BufferAllocator* a, SEBuffer* dst, void* src, u32 size) {
+    SEVulkan* v = GetGraphics(win);
+
+    u32 remaining = size;
+    while (remaining) {
+        u32 num_bytes = MIN(PAGE_SIZE, remaining);
+        memcpy(v->transfer.ptr, src + (size - remaining), num_bytes); 
+        
+        VkCommandBufferBeginInfo info = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        };
+        vkQueueWaitIdle(v->queues.transfer);
+
+        vkResetCommandBuffer(v->transfer.cmd, 0);
+        vkBeginCommandBuffer(v->transfer.cmd, &info);
+        VkBufferCopy cpy = {
+            .size = num_bytes,
+            .srcOffset = 0,
+            .dstOffset = dst->r.offset + (size - remaining)
+        };
+        vkCmdCopyBuffer(v->transfer.cmd, v->transfer.buf, a->b, 1, &cpy);
+        vkEndCommandBuffer(v->transfer.cmd);
+
+        VkSubmitInfo submit = {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &v->transfer.cmd,
+        };
+        vkQueueSubmit(v->queues.transfer, 1, &submit, VK_NULL_HANDLE);
+
+        remaining -= num_bytes;
+    }
 }

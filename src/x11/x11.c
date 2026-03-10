@@ -6,6 +6,7 @@
 #include "strbase.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_xlib.h"
+
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
@@ -193,6 +194,23 @@ void Poll(SEwindow *handle) {
             case Expose:
             {
                 debuglog("Expose Event");
+            } break;
+            case ClientMessage:
+            {
+                XClientMessageEvent* msg = (XClientMessageEvent*)&e;
+                if (msg->message_type == XInternAtom(win->disp, "WM_PROTOCOLS", 1)) {
+                    if (msg->data.l[0] == XInternAtom(win->disp, "WM_DELETE_WINDOW", 0)) {
+                        handle->shouldClose = 1;
+                    } else {
+                        char* name = XGetAtomName(win->disp, msg->data.l[0]);
+                        debugwarn("Unhandled Protocol: %n", name);
+                        XFree(name);
+                    }
+                } else {
+                    char* name = XGetAtomName(win->disp, msg->message_type);
+                    debugwarn("Unhandled Client Message Type: %n", name);
+                    XFree(name);
+                }
             } break;
 
             default: debugerr("Unsupported Event: %d", e.type); break;

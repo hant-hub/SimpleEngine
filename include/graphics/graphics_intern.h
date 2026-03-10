@@ -300,4 +300,7 @@ VkShaderModule CompileShader(SEVulkan* v, SString data);
 
 void CreateSwapChain(SEwindow* win, SEVulkan* g, Allocator a);
 
+//Memory Helpers
+void CPUtoGPUBufferMemcpy(SEwindow* win, BufferAllocator* a, SEBuffer* dst, void* src, u32 size);
+
 #endif

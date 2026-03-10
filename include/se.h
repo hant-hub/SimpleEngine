@@ -92,6 +92,7 @@ typedef struct SEsettings {
 // should always be accessed via pointer
 typedef struct SEwindow {
     Allocator mem;
+    bool8 shouldClose;
     bool8 resize;
     u32 width, height;
     const char *name;

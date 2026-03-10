@@ -59,6 +59,16 @@ void* SERetrieveDynVertBuf(SEwindow* win, SERenderPipeline* p, u32 buffer) {
     return out;
 }
 
+void SEUploadBuffer(SEwindow *win, SERenderPipeline *r, u32 resourceID, void *data, u32 size) {
+    SEVulkan *v = GetGraphics(win);
+
+    u32 idx = r->resourceMapping.data[resourceID];
+    SEBuffer* b = &r->vertBuffers.data[idx];
+    BufferAllocator* a = &r->bufAllocators.data[b->parent];
+
+    CPUtoGPUBufferMemcpy(win, a, b, data, size);
+}
+
 u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r) {
     SEVulkan *v = GetGraphics(win);
     dynPush(r->pipeline, (PipelineInfo){0});

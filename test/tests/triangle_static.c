@@ -39,7 +39,7 @@ int main() {
 
     SERenderPipelineInfo* r = SECreateRenderPipeline(win);
     u32 color = SEAddColorAttachment(win, r);
-    u32 vbuf = SEAddVertexBuffer(win, r, SE_MEM_DYNAMIC, sizeof(u32) * 3);
+    u32 vbuf = SEAddVertexBuffer(win, r, SE_MEM_STATIC, sizeof(u32) * 3);
 
     u32 pipeConfig = SEAddPipeline(win, r);
     SESetShaderFrag(win, r, pipeConfig, sstring("../shaders/basic.frag.spv"));
@@ -55,10 +55,11 @@ int main() {
 
     SERenderPipeline* pipe = SECompilePipeline(win, r);
 
-    u32* verts = SERetrieveDynVertBuf(win, pipe, vbuf);
+    u32 verts[3] = {0};
     verts[0] = 0;
     verts[1] = 1;
     verts[2] = 2;
+    SEUploadBuffer(win, pipe, vbuf, verts, sizeof(verts));
 
     /*
         RenderPipeline r = CreateRenderPipeline(win);
@@ -80,6 +81,7 @@ int main() {
     while (!win->shouldClose) {
         Poll(win);
 
+
         if (win->keystate[KEY_ESC] == KEY_PRESSED) break;
 
         static bool8 active = TRUE;
@@ -87,6 +89,7 @@ int main() {
             verts[0] = (verts[0] + 1) % 3;
             verts[1] = (verts[1] + 1) % 3;
             verts[2] = (verts[2] + 1) % 3;
+            SEUploadBuffer(win, pipe, vbuf, verts, sizeof(verts));
             active = FALSE;
         }
         if (win->keystate[KEY_A] == KEY_RELEASED) 

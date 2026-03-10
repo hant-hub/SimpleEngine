@@ -5,7 +5,7 @@
 int main() {
     InitSE();
     SEwindow* win = CreateWindow(GlobalAllocator, "test", NULL);
-    while (1){
+    while (!win->shouldClose){
         Poll(win);
 
         if (win->keystate[KEY_ESC] == KEY_PRESSED) break;
