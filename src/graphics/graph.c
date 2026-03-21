@@ -7,9 +7,46 @@ SERenderPipelineInfo *SECreateRenderPipeline(SEwindow *win) {
         .passes.a = win->mem,
         .resources.a = win->mem,
         .pipeline.a = win->mem,
+        .layouts.a = win->mem,
     };
 
     return r;
+}
+
+u32 SEAddDescriptorLayout(SEwindow *win, SERenderPipelineInfo *r) {
+    DescriptorLayout layout = {
+        .info = (VkDescriptorSetLayoutCreateInfo){
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        },
+        .bindings.a = win->mem,
+    };
+
+    dynPush(r->layouts, layout);
+    return r->layouts.size - 1;
+}
+
+void SEAddDescriptorBinding(SEwindow *win, SERenderPipelineInfo *r, u32 layout, SEShaderStage stage,
+                            SEDescriptorType type, u32 count) {
+
+    DescriptorLayout *handle = &r->layouts.data[layout];
+
+    VkDescriptorSetLayoutBinding binding = {
+        .binding = handle->bindings.size,
+        .descriptorCount = count,
+        .pImmutableSamplers = NULL,
+    };
+
+    switch (type) {
+        case SE_TEXTURE_2D: binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; break;
+        case SE_UNIFORM_BUFFER: binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; break;
+    }
+
+    if (stage & SE_SHADER_VERTEX)
+        binding.stageFlags |= VK_SHADER_STAGE_VERTEX_BIT;
+    if (stage & SE_SHADER_FRAGMENT)
+        binding.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    dynPush(handle->bindings, binding);
 }
 
 u32 SEAddColorAttachment(SEwindow *win, SERenderPipelineInfo *r) {
@@ -46,33 +83,105 @@ u32 SEAddVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 s
     return r->resources.size - 1;
 }
 
-void* SERetrieveDynVertBuf(SEwindow* win, SERenderPipeline* p, u32 buffer) {
+u32 SEAddUniformBuffer(SEwindow* win, SERenderPipelineInfo *r, SEMemType t, u32 size) {
+    dynPush(r->resources, (Resource){0});
+    dynBack(r->resources) = (Resource) {
+        .type = RESOURCE_BUFFER,
+        .resourceInfo.buf = {
+            .memType = t,
+            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            .size = size
+        },
+    };
+
+    return r->resources.size - 1;
+}
+
+void *SERetrieveDynBuf(SEwindow *win, SERenderPipeline *p, u32 buffer) {
     SEVulkan *v = GetGraphics(win);
 
     u32 idx = p->resourceMapping.data[buffer];
 
-    SEBuffer* b = &p->vertBuffers.data[idx];
-    BufferAllocator* a = &p->bufAllocators.data[b->parent];
-    void* out = NULL;
+    SEBuffer *b = &p->buffers.data[idx];
+    BufferAllocator *a = &p->bufAllocators.data[b->parent];
+    void *out = NULL;
     vkMapMemory(v->dev, v->memory.mem.data[a->memid], b->r.offset + a->r.offset, b->r.size, 0, &out);
 
     return out;
+}
+
+void SEUnmapDynBuf(SEwindow* win, SERenderPipeline *p, u32 buffer) {
+    SEVulkan *v = GetGraphics(win);
+
+    u32 idx = p->resourceMapping.data[buffer];
+
+    SEBuffer *b = &p->buffers.data[idx];
+    BufferAllocator *a = &p->bufAllocators.data[b->parent];
+    vkUnmapMemory(v->dev, v->memory.mem.data[a->memid]);
+}
+
+void SEBindUniformBuffer(SEwindow* win, SERenderPipeline* p, u32 pass, u32 buffer, u32 binding) {
+    SEVulkan *v = GetGraphics(win);
+
+    u32 idx = p->resourceMapping.data[buffer];
+
+    SEBuffer *b = &p->buffers.data[idx];
+    BufferAllocator *a = &p->bufAllocators.data[b->parent];
+
+    VkDescriptorBufferInfo bufinfo = {
+        .buffer = a->b,
+        .offset = b->r.offset,
+        .range = b->r.size,
+    };
+
+    VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstBinding = binding,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .dstSet = p->passes.data[pass].pass.set,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .pBufferInfo = &bufinfo,
+    };
+
+    vkUpdateDescriptorSets(v->dev, 1, &write, 0, NULL);
+}
+
+void SESetScissor(SERenderPipeline *p, u32 pass, f32 x, f32 y, f32 width, f32 height) {
+    Pass *passInfo = &p->passes.data[pass];
+    passInfo->scissor.x = x;
+    passInfo->scissor.y = y;
+    passInfo->scissor.width = width;
+    passInfo->scissor.height = height;
+}
+
+void SESetViewPort(SERenderPipeline *p, u32 pass, f32 x, f32 y, f32 width, f32 height) {
+    Pass *passInfo = &p->passes.data[pass];
+    passInfo->view = (VkViewport){
+        .x = x,
+        .y = y,
+        .width = width,
+        .height = height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
 }
 
 void SEUploadBuffer(SEwindow *win, SERenderPipeline *r, u32 resourceID, void *data, u32 size) {
     SEVulkan *v = GetGraphics(win);
 
     u32 idx = r->resourceMapping.data[resourceID];
-    SEBuffer* b = &r->vertBuffers.data[idx];
-    BufferAllocator* a = &r->bufAllocators.data[b->parent];
+    SEBuffer *b = &r->buffers.data[idx];
+    BufferAllocator *a = &r->bufAllocators.data[b->parent];
 
     CPUtoGPUBufferMemcpy(win, a, b, data, size);
 }
 
-u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r) {
+u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r, u32 layout) {
     SEVulkan *v = GetGraphics(win);
     dynPush(r->pipeline, (PipelineInfo){0});
     dynBack(r->pipeline) = (PipelineInfo){
+        .layout = layout,
         .attrs.a = win->mem,
         .bindings.a = win->mem,
         .pInputAssemblyState = (VkPipelineInputAssemblyStateCreateInfo){
@@ -175,15 +284,16 @@ void SESetShaderFrag(SEwindow *win, SERenderPipelineInfo *info, u32 pipe, SStrin
     ScratchArenaEnd(sc);
 }
 
-void SEAddVertexBinding(SERenderPipelineInfo *rinfo, u32 pass, SEBindingType type, SEStructSpec *layout, u32 numMembers) {
-    //next binding, plus increment
-    PipelineInfo* p = &rinfo->pipeline.data[pass];
-    u32 binding = 0;// dynBack(rinfo->passes).vertInfo.numBindings++;
+void SEAddVertexBinding(SERenderPipelineInfo *rinfo, u32 pass, SEBindingType type, SEStructSpec *layout,
+                        u32 numMembers) {
+    // next binding, plus increment
+    PipelineInfo *p = &rinfo->pipeline.data[pass];
+    u32 binding = 0; // dynBack(rinfo->passes).vertInfo.numBindings++;
     u32 size = 0;
 
     VkVertexInputBindingDescription desc = {
         .binding = binding,
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX, 
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
     };
 
     if (type == SE_BINDING_INSTANCE)
@@ -199,18 +309,10 @@ void SEAddVertexBinding(SERenderPipelineInfo *rinfo, u32 pass, SEBindingType typ
         };
 
         switch (member.type) {
-            case SE_VAR_TYPE_U32: 
-                vertAttr.format = VK_FORMAT_R32_UINT;
-                break;
-            case SE_VAR_TYPE_F32: 
-                vertAttr.format = VK_FORMAT_R32_SFLOAT;
-                break;
-            case SE_VAR_TYPE_V2F: 
-                vertAttr.format = VK_FORMAT_R32G32_SFLOAT;
-                break;
-            case SE_VAR_TYPE_V3F: 
-                vertAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
-                break;
+            case SE_VAR_TYPE_U32: vertAttr.format = VK_FORMAT_R32_UINT; break;
+            case SE_VAR_TYPE_F32: vertAttr.format = VK_FORMAT_R32_SFLOAT; break;
+            case SE_VAR_TYPE_V2F: vertAttr.format = VK_FORMAT_R32G32_SFLOAT; break;
+            case SE_VAR_TYPE_V3F: vertAttr.format = VK_FORMAT_R32G32B32_SFLOAT; break;
             default: todo();
         }
 
@@ -237,7 +339,7 @@ void SEWriteColorAttachment(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u3
     dynPush(r->passes.data[pass].color_attachments, resourceID);
 }
 
-void SEUseVertexBuffer(SEwindow* win, SERenderPipelineInfo *r, u32 pass, u32 resourceID) {
+void SEUseVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID) {
     dynPush(r->passes.data[pass].vertex_buffers, resourceID);
 }
 
@@ -251,6 +353,8 @@ void SESetBackBuffer(SERenderPipelineInfo *r, u32 resourceID) {
 void CreateBuffer(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 resource);
 void CreateImage(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 resource);
 BufAllocType GetBufAlloc(SEMemType mem, VkBufferUsageFlags usage);
+SEMemType GetBufMemType(BufAllocType type);
+SEBufType GetBufType(BufAllocType type);
 
 void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 pass);
 
@@ -267,41 +371,34 @@ SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *info) {
         .resourceMapping.a = win->mem,
         .images.a = win->mem,
         .imgInfos.a = win->mem,
-        .vertBuffers.a = win->mem,
+        .buffers.a = win->mem,
         .passes.a = win->mem,
         .passVertMapping.a = win->mem,
         .framebuffers.a = win->mem,
         .framebufferInfos.a = win->mem,
         .frameBufferMapping.a = win->mem,
+        .layouts.a = win->mem,
     };
 
     // init BufferAllocators
-    u32 vert_static = 0;
-    u32 vert_dyn = 0;
+    u32 alloc_sizes[BUF_ALLOC_NUM] = {0};
     for (u32 i = 0; i < info->resources.size; i++) {
         if (info->resources.data[i].type != RESOURCE_BUFFER)
             continue;
 
         struct SEBufferInfo buf = info->resources.data[i].resourceInfo.buf;
         BufAllocType type = GetBufAlloc(buf.memType, buf.usage);
-
-        switch (type) {
-            case BUF_ALLOC_VERT_STATIC: vert_static += buf.size; break;
-            case BUF_ALLOC_VERT_DYN: vert_dyn += buf.size; break;
-            default:
-                debugerr("Invalid Buffer Allocator");
-                panic();
-                break;
-        }
+        assert(type != BUF_ALLOC_INVALID);
+        alloc_sizes[type] += buf.size;
     }
 
     dynResize(pipe->bufAllocators, BUF_ALLOC_NUM);
 
-    if (vert_static)
-        pipe->bufAllocators.data[BUF_ALLOC_VERT_STATIC]
-            = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_STATIC, vert_static);
-    if (vert_dyn)
-        pipe->bufAllocators.data[BUF_ALLOC_VERT_DYN] = SEConfigBufType(win, SE_BUFFER_VERT, SE_MEM_DYNAMIC, vert_dyn);
+    for (u32 i = 0; i < BUF_ALLOC_NUM; i++) {
+        if (alloc_sizes[i]) {
+            pipe->bufAllocators.data[i] = SEConfigBufType(win, GetBufType(i), GetBufMemType(i), alloc_sizes[i]);
+        }
+    }
 
     // build Resources
     for (u32 i = 0; i < info->resources.size; i++) {
@@ -314,6 +411,23 @@ SERenderPipeline *SECompilePipeline(SEwindow *win, SERenderPipelineInfo *info) {
 
     // build RenderPasses
     for (u32 i = 0; i < info->passes.size; i++) { BuildPass(win, info, pipe, i); }
+
+    // create descriptor pools
+    for (u32 i = 0; i < info->layouts.size; i++) {
+        Layout l = CompileLayout(v, &info->layouts.data[i]);
+        dynPush(pipe->layouts, l);
+    }
+
+    // allocate sets
+    for (u32 i = 0; i < info->passes.size; i++) {
+        VkDescriptorSetAllocateInfo allocInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = pipe->layouts.data[pipe->passes.data[i].pass.layout].pool,
+            .pSetLayouts = &info->layouts.data[pipe->passes.data[i].pass.layout].desclayout,
+            .descriptorSetCount = 1,
+        };
+        vkAllocateDescriptorSets(v->dev, &allocInfo, &pipe->passes.data[i].pass.set);
+    }
 
     BuildFrameBuffers(v, pipe);
 
@@ -395,19 +509,18 @@ void SEExecutePipeline(SEwindow *win, SERenderPipeline *p) {
         vkCmdBeginRenderPass(p->cmdBufs[counter], &rbeg, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(p->cmdBufs[counter], VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeline);
 
-        VkViewport view = {
-            .x = 0,
-            .y = 0,
-            .width = pass->size.x,
-            .height = pass->size.y,
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f,
-        };
+        VkViewport view = pass->view;
+        view.x *= pass->size.x;
+        view.x *= pass->size.y;
+        view.width *= pass->size.x;
+        view.height *= pass->size.y;
         vkCmdSetViewport(p->cmdBufs[counter], 0, 1, &view);
 
-        VkRect2D scissor = {
-            .offset = {0, 0},
-            .extent = {pass->size.x, pass->size.y},
+        VkRect2D scissor = (VkRect2D){
+            .offset.x = pass->scissor.x * pass->size.x,
+            .offset.y = pass->scissor.y * pass->size.y,
+            .extent.width = pass->scissor.width * pass->size.x,
+            .extent.height = pass->scissor.height * pass->size.y,
         };
         vkCmdSetScissor(p->cmdBufs[counter], 0, 1, &scissor);
 
@@ -417,13 +530,16 @@ void SEExecutePipeline(SEwindow *win, SERenderPipeline *p) {
             VkDeviceSize *vertOffsets = ArenaAlloc(&sc.arena, sizeof(VkDeviceSize) * pass->resources.verts.num);
 
             for (u32 i = 0; i < pass->resources.verts.num; i++) {
-                u32 memid = p->vertBuffers.data[pass->resources.verts.start].parent;
+                u32 memid = p->buffers.data[pass->resources.verts.start].parent;
                 vertBuffers[i] = p->bufAllocators.data[memid].b;
-                vertOffsets[i] = p->vertBuffers.data[pass->resources.verts.start].r.offset;
+                vertOffsets[i] = p->buffers.data[pass->resources.verts.start].r.offset;
             }
             vkCmdBindVertexBuffers(p->cmdBufs[counter], 0, pass->resources.verts.num, vertBuffers, vertOffsets);
         }
         ScratchArenaEnd(sc);
+
+        vkCmdBindDescriptorSets(p->cmdBufs[counter], VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeLayout, 0, 1,
+                                &pass->pass.set, 0, NULL);
 
         // pass->draw();
         vkCmdDraw(p->cmdBufs[counter], 3, 1, 0, 0);
@@ -688,7 +804,11 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
     }
 
     vkCreateRenderPass(v->dev, &rpass, NULL, &final.pass.pass);
-    final.pass.pipeline = CreatePipeline(v, final.pass.pass, &info->pipeline.data[pass->pipeline]);
+    final.pass.layout = info->pipeline.data[pass->pipeline].layout;
+    final.pass.pipeLayout = CreatePipelineLayout(v, &info->layouts.data[final.pass.layout]);
+    final.pass.pipeline
+        = CreatePipeline(v, final.pass.pass, &info->pipeline.data[pass->pipeline], final.pass.pipeLayout);
+    info->layouts.data[info->pipeline.data[pass->pipeline].layout].sets_required++;
 
     dynPush(pipe->passes, final);
     ScratchArenaEnd(sc);
@@ -746,10 +866,8 @@ void CreateBuffer(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *p
     BufAllocType t = GetBufAlloc(bufInfo.memType, bufInfo.usage);
     SEBuffer buffer = AllocBuffer(win, &pipe->bufAllocators.data[t], t, bufInfo.size);
 
-    if (t == BUF_ALLOC_VERT_DYN || t == BUF_ALLOC_VERT_STATIC) {
-        dynPush(pipe->resourceMapping, pipe->vertBuffers.size);
-        dynPush(pipe->vertBuffers, buffer);
-    }
+    dynPush(pipe->resourceMapping, pipe->buffers.size);
+    dynPush(pipe->buffers, buffer);
 }
 
 void CreateImage(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 resource) {
@@ -776,12 +894,52 @@ BufAllocType GetBufAlloc(SEMemType mem, VkBufferUsageFlags usage) {
     if (mem == SE_MEM_STATIC) {
         if (usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
             return BUF_ALLOC_VERT_STATIC;
+
+        if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+            return BUF_ALLOC_UNIFORM_STATIC;
     } else {
         if (usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
             return BUF_ALLOC_VERT_DYN;
+
+        if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+            return BUF_ALLOC_UNIFORM_DYN;
     }
 
+
     return BUF_ALLOC_INVALID;
+}
+
+SEMemType GetBufMemType(BufAllocType type) {
+    switch (type) {
+        case BUF_ALLOC_VERT_STATIC:
+        case BUF_ALLOC_UNIFORM_STATIC:
+            return SE_MEM_STATIC;
+
+        case BUF_ALLOC_VERT_DYN:
+        case BUF_ALLOC_UNIFORM_DYN:
+            return SE_MEM_DYNAMIC;
+
+        default: {
+            debugerr("Invalid Buf Type");
+            panic();
+        }
+    }
+}
+
+SEBufType GetBufType(BufAllocType type) {
+    switch (type) {
+        case BUF_ALLOC_VERT_DYN:
+        case BUF_ALLOC_VERT_STATIC:
+            return SE_BUFFER_VERT;
+        case BUF_ALLOC_UNIFORM_STATIC:
+        case BUF_ALLOC_UNIFORM_DYN:
+            return SE_BUFFER_UNIFORM;
+
+        default: {
+            debugerr("Invalid Type");
+            panic();
+        }
+    }
 }
 
 void SEDestroyRenderPipelineInfo(SEwindow *win, SERenderPipelineInfo *r) {
@@ -802,9 +960,17 @@ void SEDestroyRenderPipelineInfo(SEwindow *win, SERenderPipelineInfo *r) {
         vkDestroyShaderModule(v->dev, r->pipeline.data[i].vert, NULL);
         vkDestroyShaderModule(v->dev, r->pipeline.data[i].frag, NULL);
 
-        vkDestroyPipelineLayout(v->dev, r->pipeline.data[i].layout, NULL);
+        // vkDestroyPipelineLayout(v->dev, r->pipeline.data[i].layout, NULL);
     }
     dynFree(r->pipeline);
+
+    for (u32 i = 0; i < r->layouts.size; i++) {
+        dynFree(r->layouts.data[i].bindings);
+
+        vkDestroyPipelineLayout(v->dev, r->layouts.data[i].layout, NULL);
+        vkDestroyDescriptorSetLayout(v->dev, r->layouts.data[i].desclayout, NULL);
+    }
+    dynFree(r->layouts);
 }
 
 void SEDestroyPipeline(SEwindow *win, SERenderPipeline *p) {
@@ -818,13 +984,19 @@ void SEDestroyPipeline(SEwindow *win, SERenderPipeline *p) {
     dynFree(p->frameBufferMapping);
     dynFree(p->framebufferInfos);
     dynFree(p->imgInfos);
-    dynFree(p->vertBuffers);
+    dynFree(p->buffers);
 
     for (u32 i = 0; i < p->passes.size; i++) {
         vkDestroyPipeline(v->dev, p->passes.data[i].pass.pipeline, NULL);
         vkDestroyRenderPass(v->dev, p->passes.data[i].pass.pass, NULL);
+        vkDestroyPipelineLayout(v->dev, p->passes.data[i].pass.pipeLayout, NULL);
     }
     dynFree(p->passes);
+
+    for (u32 i = 0; i < p->layouts.size; i++) {
+        vkDestroyDescriptorPool(v->dev, p->layouts.data[i].pool, NULL);
+    }
+    dynFree(p->layouts);
 
     for (u32 i = 0; i < p->bufAllocators.size; i++) {
         BufferAllocator *a = &p->bufAllocators.data[i];

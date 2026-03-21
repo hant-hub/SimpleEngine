@@ -24,6 +24,9 @@ BufferAllocator SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 siz
         case SE_BUFFER_INDEX:
             info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
             break;
+        case SE_BUFFER_UNIFORM:
+            info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+            break;
     }
 
     switch (mt) {
@@ -40,8 +43,6 @@ BufferAllocator SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 siz
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
             break;
     }
-
-
 
     BufferAllocator a = InitBufferAllocator(w, info, props);
     return a;

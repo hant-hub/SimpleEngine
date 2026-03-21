@@ -34,20 +34,27 @@
         - [X] Get Buffer Handle (void* for dyn and Transfer op for vert data)
             - [X] void* for dyn
             - [X] transfer for static
-        - [ ] Add Vertex Spec
+        - [X] Add Vertex Spec
             - [ ] Update Vertex Spec to handle more data
-                - [ ] vec2
-                - [ ] vec3
+                - [X] vec2
+                - [X] vec3
                 - [ ] vec4
     - [ ] Index Buffer Support
         - [ ] Add Buffer
         - [ ] Alter Draw command to use index buffer
-    - [ ] Get Framebuffer to use correct size
+    - [X] Get Framebuffer to use correct size
         - [X] Store on Pass using shrinking algorithm
-        - [ ] Allow setting viewport (Put on Pass)
+        - [X] Allow setting viewport (Put on Pass)
     - [ ] Pipeline Config Funcs
-    - [ ] Descriptor Sets
-        - [ ] Update Pipeline Layouts
+    - [X] Descriptor Sets
+        - [X] Update Pipeline Layouts
+        - [X] Descriptor Sets
+        - [X] Calc Number of sets required
+        - [X] create layout pool
+        - [X] Allocate Uniform Buffers
+    - [ ] Textures
+        - [ ] Add Binding Type
+        - [ ] Add to image
     - [ ] Shader Storage (only read and compile once)
     - [ ] Texture Data
 

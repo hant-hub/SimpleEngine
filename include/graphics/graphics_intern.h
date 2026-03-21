@@ -179,7 +179,7 @@ typedef struct Resource {
 } Resource;
 
 typedef struct PipelineInfo {
-    VkPipelineLayout layout;
+    u32 layout;
 
     VkPipelineInputAssemblyStateCreateInfo    pInputAssemblyState;
     VkPipelineTessellationStateCreateInfo     pTessellationState;
@@ -195,9 +195,18 @@ typedef struct PipelineInfo {
 
     dynArray(VkVertexInputBindingDescription) bindings;
     dynArray(VkVertexInputAttributeDescription) attrs;
+    dynArray(u32) DescriptorSets; 
     VkShaderModule vert;
     VkShaderModule frag;
 } PipelineInfo;
+
+typedef struct DescriptorLayout {
+    u32 sets_required;
+    VkPipelineLayout layout;
+    VkDescriptorSetLayout desclayout;
+    VkDescriptorSetLayoutCreateInfo info;
+    dynArray(VkDescriptorSetLayoutBinding) bindings;
+} DescriptorLayout;
 
 typedef struct PassInfo {
     dynArray(u32) color_attachments; 
@@ -210,13 +219,21 @@ typedef struct SERenderPipelineInfo {
     dynArray(Resource) resources;
     dynArray(PassInfo) passes;
     dynArray(PipelineInfo) pipeline;
+    dynArray(DescriptorLayout) layouts;
 } SERenderPipelineInfo;
+
+typedef struct Layout {
+    VkDescriptorPool pool;
+} Layout;
 
 typedef struct Pass {
     struct {
+        VkPipeline pipeline;
+        VkPipelineLayout pipeLayout;
         VkRenderPass pass;
         u32 framebuffer;
-        VkPipeline pipeline;
+        u32 layout;
+        VkDescriptorSet set;
     } pass;
 
     struct {
@@ -225,6 +242,14 @@ typedef struct Pass {
             u32 num;
         } verts;
     } resources;
+
+    VkViewport view;
+    struct {
+        f32 x;
+        f32 y;
+        f32 width;
+        f32 height;
+    } scissor;
 
     v2u size;
 
@@ -240,6 +265,8 @@ typedef struct FrameBufferInfo {
 typedef enum BufAllocType {
     BUF_ALLOC_VERT_STATIC = 0,
     BUF_ALLOC_VERT_DYN,
+    BUF_ALLOC_UNIFORM_STATIC,
+    BUF_ALLOC_UNIFORM_DYN,
     BUF_ALLOC_NUM,
     BUF_ALLOC_INVALID = ~0,
 } BufAllocType;
@@ -251,10 +278,11 @@ typedef struct SERenderPipeline {
 
     dynArray(BufferAllocator) bufAllocators;
     dynArray(Pass) passes;
+    dynArray(Layout) layouts;
 
     dynArray(u32) resourceMapping; //maps resourceID to resource ie: vertBuffer or image
     dynArray(u32) passVertMapping;
-    dynArray(SEBuffer) vertBuffers;
+    dynArray(SEBuffer) buffers;
 
     dynArray(FrameBufferInfo) framebufferInfos;
     dynArray(VkFramebuffer) framebuffers;
@@ -295,7 +323,9 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
 void DestroyVulkan(SEVulkan g, Allocator a);
 
 //helpers
-VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r, PipelineInfo* info);
+VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r, PipelineInfo* info, VkPipelineLayout layout);
+VkPipelineLayout CreatePipelineLayout(SEVulkan* v, DescriptorLayout* l);
+Layout CompileLayout(SEVulkan* v, DescriptorLayout* layout);
 VkShaderModule CompileShader(SEVulkan* v, SString data);
 
 void CreateSwapChain(SEwindow* win, SEVulkan* g, Allocator a);

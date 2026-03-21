@@ -8,6 +8,7 @@ enum SEVarType : u32 {
     SE_VAR_TYPE_F32,
     SE_VAR_TYPE_V2F,
     SE_VAR_TYPE_V3F,
+    SE_VAR_TYPE_V4F,
 };
 
 enum SEVarType : u32;

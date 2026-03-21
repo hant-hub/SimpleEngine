@@ -40,8 +40,9 @@ int main() {
     SERenderPipelineInfo* r = SECreateRenderPipeline(win);
     u32 color = SEAddColorAttachment(win, r);
     u32 vbuf = SEAddVertexBuffer(win, r, SE_MEM_DYNAMIC, sizeof(u32) * 3);
+    u32 layout = SEAddDescriptorLayout(win, r);
 
-    u32 pipeConfig = SEAddPipeline(win, r);
+    u32 pipeConfig = SEAddPipeline(win, r, layout);
     SESetShaderFrag(win, r, pipeConfig, sstring("../shaders/basic.frag.spv"));
     SESetShaderVertex(win, r, pipeConfig, sstring("../shaders/basic.vert.spv"));
     SEAddVertexBinding(r, pipeConfig, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
@@ -55,7 +56,10 @@ int main() {
 
     SERenderPipeline* pipe = SECompilePipeline(win, r);
 
-    u32* verts = SERetrieveDynVertBuf(win, pipe, vbuf);
+    SESetViewPort(pipe, color_pass, 0.0f, 0.0f, 1.0f, 1.0f);
+    SESetScissor(pipe, color_pass, 0.0f, 0.0f, 1.0f, 1.0f);
+
+    u32* verts = SERetrieveDynBuf(win, pipe, vbuf);
     verts[0] = 0;
     verts[1] = 1;
     verts[2] = 2;
@@ -82,15 +86,31 @@ int main() {
 
         if (win->keystate[KEY_ESC] == KEY_PRESSED) break;
 
-        static bool8 active = TRUE;
-        if (win->keystate[KEY_A] == KEY_PRESSED && active) {
-            verts[0] = (verts[0] + 1) % 3;
-            verts[1] = (verts[1] + 1) % 3;
-            verts[2] = (verts[2] + 1) % 3;
-            active = FALSE;
+        {
+            static bool8 active = TRUE;
+            if (win->keystate[KEY_A] == KEY_PRESSED && active) {
+                verts[0] = (verts[0] + 1) % 3;
+                verts[1] = (verts[1] + 1) % 3;
+                verts[2] = (verts[2] + 1) % 3;
+                active = FALSE;
+            }
+            if (win->keystate[KEY_A] == KEY_RELEASED) 
+                active = TRUE;
         }
-        if (win->keystate[KEY_A] == KEY_RELEASED) 
-            active = TRUE;
+
+        {
+            static bool8 active = TRUE;
+            if (win->keystate[KEY_S] == KEY_PRESSED && active) {
+                active = FALSE;
+                SESetViewPort(pipe, color_pass, 0.0f, 0.0f, 1.0f, 1.0f);
+                SESetScissor(pipe, color_pass, 0.0f, 0.0f, 1.0f, 0.5f);
+            }
+            if (win->keystate[KEY_S] == KEY_RELEASED) {
+                SESetViewPort(pipe, color_pass, 0.0f, 0.0f, 1.0f, 1.0f);
+                SESetScissor(pipe, color_pass, 0.0f, 0.0f, 1.0f, 1.0f);
+                active = TRUE;
+            }
+        }
 
         SEExecutePipeline(win, pipe);
 

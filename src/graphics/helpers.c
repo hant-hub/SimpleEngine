@@ -2,10 +2,17 @@
 #include "vulkan/vulkan_core.h"
 #include <graphics/graphics_intern.h>
 
-VkPipelineLayout CreatePipelineLayout(SEVulkan* v) {
+VkPipelineLayout CreatePipelineLayout(SEVulkan* v, DescriptorLayout* l) {
+
+    l->info.pBindings = l->bindings.data;
+    l->info.bindingCount = l->bindings.size;
+
+    vkCreateDescriptorSetLayout(v->dev, &l->info, NULL, &l->desclayout);
 
     VkPipelineLayoutCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pSetLayouts = &l->desclayout,
+        .setLayoutCount = 1,
     };
 
     VkPipelineLayout layout = 0;
@@ -13,7 +20,7 @@ VkPipelineLayout CreatePipelineLayout(SEVulkan* v) {
     return layout;
 }
 
-VkPipeline CreatePipeline(SEVulkan *v, VkRenderPass r, PipelineInfo *info) {
+VkPipeline CreatePipeline(SEVulkan *v, VkRenderPass r, PipelineInfo *info, VkPipelineLayout layout) {
 
     VkPipelineShaderStageCreateInfo shaders[2];
     shaders[0] = (VkPipelineShaderStageCreateInfo){
@@ -38,11 +45,10 @@ VkPipeline CreatePipeline(SEVulkan *v, VkRenderPass r, PipelineInfo *info) {
     };
 
     //TODO(ELI): Extract later
-    info->layout = CreatePipelineLayout(v);
 
     VkGraphicsPipelineCreateInfo pipeInfo = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .layout = info->layout,
+        .layout = layout,
         .subpass = 0,
         .pColorBlendState = info->pColorBlendState.sType ? &info->pColorBlendState : NULL,
         .pVertexInputState = &vertinput,
@@ -72,4 +78,28 @@ VkShaderModule CompileShader(SEVulkan* v, SString data) {
     VkShaderModule m = 0;
     vkCreateShaderModule(v->dev, &moduleInfo, NULL, &m);
     return m;
+}
+
+Layout CompileLayout(SEVulkan* v, DescriptorLayout* layout) {
+    Layout l;
+    ScratchArena sc = ScratchArenaGet(NULL);
+    
+    VkDescriptorPoolSize* sizes = ArenaAllocZero(&sc.arena, sizeof(VkDescriptorPoolSize) * layout->bindings.size); 
+    for (u32 i = 0; i < layout->bindings.size; i++) {
+        sizes[i] = (VkDescriptorPoolSize) {
+            .type = layout->bindings.data[i].descriptorType,
+            .descriptorCount = layout->bindings.data[i].descriptorCount,
+        };
+    }
+
+    VkDescriptorPoolCreateInfo poolInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .pPoolSizes = sizes,
+        .poolSizeCount = layout->bindings.size,
+        .maxSets = layout->sets_required,
+    };
+
+    vkCreateDescriptorPool(v->dev, &poolInfo, NULL, &l.pool);
+    ScratchArenaEnd(sc);
+    return l;
 }
