@@ -1,9 +1,9 @@
 #include <se_intern.h>
 
 #include "platform/x11/x11.h"
-#include "cutils.h"
+#include "core/cutils.h"
 #include "se.h"
-#include "strbase.h"
+#include "strbase/strbase.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_xlib.h"
 

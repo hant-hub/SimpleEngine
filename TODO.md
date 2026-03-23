@@ -39,6 +39,7 @@
                 - [X] vec2
                 - [X] vec3
                 - [ ] vec4
+    - [X] Switch to Updated Cutils
     - [ ] Index Buffer Support
         - [ ] Add Buffer
         - [ ] Alter Draw command to use index buffer

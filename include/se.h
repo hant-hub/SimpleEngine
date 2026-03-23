@@ -1,9 +1,9 @@
 #ifndef SE_H
 #define SE_H
 
-#include "cutils.h"
+#include "core/cutils.h"
 #include "graphics/graphics.h"
-#include <strbase.h>
+#include <strbase/strbase.h>
 
 #include <vulkan/vulkan.h>
 

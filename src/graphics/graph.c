@@ -97,6 +97,32 @@ u32 SEAddUniformBuffer(SEwindow* win, SERenderPipelineInfo *r, SEMemType t, u32 
     return r->resources.size - 1;
 }
 
+VkFormat SEtoVkFormat[] = {
+    [SE_IMAGE_RGBA_32] = VK_FORMAT_R32G32B32A32_SINT,
+    [SE_IMAGE_RGBA_8] = VK_FORMAT_R8G8B8A8_SINT,
+    [SE_IMAGE_RGB_32] = VK_FORMAT_R32G32B32_SINT,
+    [SE_IMAGE_RGB_8] = VK_FORMAT_R8G8B8_SINT,
+    [SE_IMAGE_BGRA_8] = VK_FORMAT_B8G8R8A8_SINT,
+    [SE_IMAGE_BGR_8] = VK_FORMAT_B8G8R8_SINT,
+};
+
+u32 SEAddTexture(SEwindow* win, SERenderPipelineInfo* r, SEImageFormat format, u32 width, u32 height) {
+    dynPush(r->resources, (Resource){0});
+    dynBack(r->resources) = (Resource) {
+        .type = RESOURCE_IMAGE,
+        .resourceInfo.img = {
+            .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
+            .format = SEtoVkFormat[format],
+            .width = width,
+            .height = height,
+            .swapRel = FALSE,
+            .layout = VK_IMAGE_LAYOUT_UNDEFINED,
+        },
+    };
+
+    return r->resources.size - 1;
+}
+
 void *SERetrieveDynBuf(SEwindow *win, SERenderPipeline *p, u32 buffer) {
     SEVulkan *v = GetGraphics(win);
 

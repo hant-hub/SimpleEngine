@@ -1,9 +1,9 @@
 #ifndef SE_GRAPHICS_INTERN_H
 #define SE_GRAPHICS_INTERN_H
 
-#include "cutils.h"
+#include "core/cutils.h"
+#include "ds/ds.h"
 #include "se.h"
-#include "ds.h"
 #include "vulkan/vk_platform.h"
 #include "vulkan/vulkan_core.h"
 

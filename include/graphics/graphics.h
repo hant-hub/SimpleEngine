@@ -1,7 +1,7 @@
 #ifndef SE_GRAPHICS_H
 #define SE_GRAPHICS_H
 
-#include "cutils.h"
+#include <core/cutils.h>
 #include <core/introspect.h>
 
 // TODO(ELI): Replace flags with engine provided types
@@ -12,6 +12,16 @@ typedef enum SEBufType {
     SE_BUFFER_INDEX,
     SE_BUFFER_UNIFORM,
 } SEBufType;
+
+typedef enum SEImageFormat {
+    SE_IMAGE_RGBA_32 = 0,
+    SE_IMAGE_RGBA_8,
+    SE_IMAGE_RGB_32,
+    SE_IMAGE_RGB_8,
+    SE_IMAGE_BGRA_8,
+    SE_IMAGE_BGR_8,
+    SE_IMAGE_FORMAT_NUM,
+} SEImageFormat;
 
 typedef enum SEMemType {
     SE_MEM_STATIC,
@@ -63,6 +73,7 @@ u32 SENewPass(SEwindow *win, SERenderPipelineInfo *r);
 u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r, u32 layout);
 u32 SEAddVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 size);
 u32 SEAddUniformBuffer(SEwindow* win, SERenderPipelineInfo *r, SEMemType t, u32 size);
+u32 SEAddTexture(SEwindow* win, SERenderPipelineInfo* r, SEImageFormat format, u32 width, u32 height);
 
 void SEUseVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID);
 void SEWriteColorAttachment(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID);

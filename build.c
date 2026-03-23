@@ -61,27 +61,10 @@ int main(int argc, char *argv[]) {
             // downloads latest version of
             // cutils
             sb_CMD() {
-                sb_cmd_main("curl");
-                sb_cmd_arg("https://raw.githubusercontent.com/hant-hub/Cutils/refs/heads/main/include/cutils.h");
-                sb_cmd_opt("O");
-                sb_cmd_opt("-output-dir");
-                sb_cmd_arg("lib/include/");
-            }
-            // simple ds for hashmaps and dynarrays
-            sb_CMD() {
-                sb_cmd_main("curl");
-                sb_cmd_arg("https://raw.githubusercontent.com/hant-hub/SimpleDS/refs/heads/main/include/ds.h");
-                sb_cmd_opt("O");
-                sb_cmd_opt("-output-dir");
-                sb_cmd_arg("lib/include/");
-            }
-            // StringBase for string interning
-            sb_CMD() {
-                sb_cmd_main("curl");
-                sb_cmd_arg("https://raw.githubusercontent.com/hant-hub/StringBase/refs/heads/main/include/strbase.h");
-                sb_cmd_opt("O");
-                sb_cmd_opt("-output-dir");
-                sb_cmd_arg("lib/include/");
+                sb_cmd_main("git");
+                sb_cmd_arg("clone");
+                sb_cmd_arg("git@github.com:hant-hub/Cutils.git");
+                sb_cmd_arg("lib/cutils");
             }
         }
 
@@ -149,7 +132,7 @@ int main(int argc, char *argv[]) {
                 sb_add_file(source);
 
                 sb_add_include_path("include/");
-                sb_add_include_path("lib/include");
+                sb_add_include_path("lib/cutils/include/");
 
                 sb_link_library("vulkan");
 
@@ -187,7 +170,7 @@ int main(int argc, char *argv[]) {
                 sb_add_file(source);
 
                 sb_add_include_path("include/");
-                sb_add_include_path("lib/include");
+                sb_add_include_path("lib/cutils/include/");
 
                 sb_add_flag("g");
                 sb_add_flag(buildflag);
@@ -214,7 +197,7 @@ int main(int argc, char *argv[]) {
                 sb_add_file(source);
 
                 sb_add_include_path("include/");
-                sb_add_include_path("lib/include");
+                sb_add_include_path("lib/cutils/include/");
 
                 sb_add_flag("g");
                 sb_add_flag(buildflag);
@@ -235,6 +218,32 @@ int main(int argc, char *argv[]) {
             }
             sb_fence();
         }
+
+        char* source = "lib/cutils/src/cutils.c";
+        sb_EXEC() {
+            sb_add_file(source);
+
+            sb_add_include_path("include/");
+            sb_add_include_path("lib/cutils/include/");
+
+            sb_add_flag("g");
+            sb_add_flag(buildflag);
+            if (parsed.mem.set)
+                sb_add_flag("fsanitize=address");
+
+            char buf[PATH_MAX + 1] = {0};
+            char final[PATH_MAX + 1] = {0};
+            strncpy(buf, source, PATH_MAX);
+
+            char *name = sb_stripext(sb_basename(buf));
+            snprintf(final, PATH_MAX, "objs/core_%s.o", name);
+
+            sb_add_flag("c");
+            sb_set_out(final);
+
+            sb_export_command();
+        }
+        sb_fence();
 
         // Static lib
         sb_FOREACHFILE("build/objs/", file) {
@@ -258,7 +267,7 @@ int main(int argc, char *argv[]) {
                 sb_add_file("build/libse.a");
 
                 sb_add_include_path("include/");
-                sb_add_include_path("lib/include");
+                sb_add_include_path("lib/cutils/include/");
 
                 sb_link_library("vulkan");
 
@@ -310,12 +319,20 @@ int main(int argc, char *argv[]) {
                 printf("shader: %s\n", final);
             }
         }
+        
+        sb_CMD() {
+            sb_cmd_main("cp");
+            sb_cmd_opt("r");
+            sb_cmd_arg("assets");
+            sb_cmd_arg("build/assets");
+        }
 
         sb_EXEC() {
             sb_add_file("test/runner.c");
+            sb_add_file("lib/cutils/src/cutils.c");
 
             sb_add_include_path("include/");
-            sb_add_include_path("lib/include");
+            sb_add_include_path("lib/cutils/include/");
 
             switch (p) {
                 case X11: sb_add_flag("DX11"); break;

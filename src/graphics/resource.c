@@ -1,9 +1,9 @@
 #include <graphics/graphics_intern.h>
 #include <se_intern.h>
 
-BufferAllocator InitBufferAllocator(SEwindow* w, VkBufferCreateInfo info, u32 props);
-BufferAllocator SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 size) {
-    SEVulkan* v = GetGraphics(w);
+BufferAllocator InitBufferAllocator(SEwindow *w, VkBufferCreateInfo info, u32 props);
+BufferAllocator SEConfigBufType(SEwindow *w, SEBufType bt, SEMemType mt, u64 size) {
+    SEVulkan *v = GetGraphics(w);
     u32 props = 0;
     u32 queues[] = {v->queues.gfam, v->queues.tfam};
 
@@ -18,38 +18,29 @@ BufferAllocator SEConfigBufType(SEwindow* w, SEBufType bt, SEMemType mt, u64 siz
     };
 
     switch (bt) {
-        case SE_BUFFER_VERT:
-            info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-            break;
-        case SE_BUFFER_INDEX:
-            info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-            break;
-        case SE_BUFFER_UNIFORM:
-            info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-            break;
+        case SE_BUFFER_VERT: info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT; break;
+        case SE_BUFFER_INDEX: info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT; break;
+        case SE_BUFFER_UNIFORM: info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT; break;
     }
 
     switch (mt) {
         case SE_MEM_STATIC:
             props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-            
+
             info.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
             info.sharingMode = VK_SHARING_MODE_CONCURRENT;
             info.queueFamilyIndexCount = 1 + (v->queues.gfam != v->queues.tfam);
 
             break;
-        case SE_MEM_DYNAMIC:
-            props = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-            break;
+        case SE_MEM_DYNAMIC: props = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT; break;
     }
 
     BufferAllocator a = InitBufferAllocator(w, info, props);
     return a;
 }
 
-BufferAllocator InitBufferAllocator(SEwindow* w, VkBufferCreateInfo info, u32 props) {
-    SEVulkan* v = GetGraphics(w);
+BufferAllocator InitBufferAllocator(SEwindow *w, VkBufferCreateInfo info, u32 props) {
+    SEVulkan *v = GetGraphics(w);
 
     VkBuffer buf;
     assert(!vkCreateBuffer(v->dev, &info, NULL, &buf));
@@ -65,14 +56,9 @@ BufferAllocator InitBufferAllocator(SEwindow* w, VkBufferCreateInfo info, u32 pr
             MemoryRange r = AllocateDeviceMem(&v->memory.heaps.data[i], req.size, req.alignment);
             vkBindBufferMemory(v->dev, buf, v->memory.mem.data[i], r.offset);
 
-            BufferAllocator alloc = {
-                .b = buf,
-                .memid = i,
-                .alignment = req.alignment,
-                .r = r,
-                .m = CreateManager(w->mem, r.size)
-            };
-            
+            BufferAllocator alloc
+                = {.b = buf, .memid = i, .alignment = req.alignment, .r = r, .m = CreateManager(w->mem, r.size)};
+
             return alloc;
             break;
         }
@@ -83,13 +69,10 @@ BufferAllocator InitBufferAllocator(SEwindow* w, VkBufferCreateInfo info, u32 pr
     return (BufferAllocator){0};
 }
 
-SEBuffer AllocBuffer(SEwindow* win, BufferAllocator* allocator, u32 bufID, u64 size) {
-    SEVulkan* v = GetGraphics(win);
+SEBuffer AllocBuffer(SEwindow *win, BufferAllocator *allocator, u32 bufID, u64 size) {
+    SEVulkan *v = GetGraphics(win);
 
-    SEBuffer out = {
-        .parent = bufID,
-        .r = AllocateDeviceMem(&allocator->m, size, allocator->alignment)
-    };
+    SEBuffer out = {.parent = bufID, .r = AllocateDeviceMem(&allocator->m, size, allocator->alignment)};
 
     if (out.r.size < size) {
         debugerr("Failed to Alloc Buffer");
@@ -99,32 +82,35 @@ SEBuffer AllocBuffer(SEwindow* win, BufferAllocator* allocator, u32 bufID, u64 s
     return out;
 }
 
+SEImage AllocImage(SEVulkan *v, VkImageUsageFlags usage, VkFormat format, u32 width, u32 height) {
 
-SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat format, u32 width, u32 height) {
-    
     VkFormatFeatureFlags feat = 0;
     VkImageAspectFlags aspect = 0;
     if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
-            feat |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
-            aspect |= VK_IMAGE_ASPECT_COLOR_BIT;
+        feat |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+        aspect |= VK_IMAGE_ASPECT_COLOR_BIT;
     }
 
     if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
-            feat |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
-            aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
+        feat |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
     }
-     
+
+    if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
+        feat |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+        aspect |= VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
     if (feat == 0) {
         debugerr("Usage Not yet Supported!");
         panic();
     }
 
-
     SEImage out = {
         .format = format,
         .width = width,
         .height = height,
-    }; 
+    };
 
     VkImageCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -141,7 +127,6 @@ SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat format, u32 wi
         .queueFamilyIndexCount = 1 + (v->queues.gfam != v->queues.tfam),
         .pQueueFamilyIndices = (u32[]){v->queues.gfam, v->queues.tfam},
     };
-
 
     vkCreateImage(v->dev, &info, NULL, &out.img);
 
@@ -184,19 +169,19 @@ SEImage AllocImage(SEVulkan* v, VkImageUsageFlags usage, VkFormat format, u32 wi
     return out;
 }
 
-//void* GetHandle(SEwindow* win, SEBuffer b) {
-//    SEVulkan* v = GetGraphics(win);
+// void* GetHandle(SEwindow* win, SEBuffer b) {
+//     SEVulkan* v = GetGraphics(win);
 //
-//    void* ptr;
-//    BufferAllocator alloc = v->bufAllocators.data[b.parent];
-//    vkMapMemory(v->dev, v->memory.mem.data[alloc.memid], b.r.offset, b.r.size, 0, &ptr);
+//     void* ptr;
+//     BufferAllocator alloc = v->bufAllocators.data[b.parent];
+//     vkMapMemory(v->dev, v->memory.mem.data[alloc.memid], b.r.offset, b.r.size, 0, &ptr);
 //
-//    return ptr;
-//}
+//     return ptr;
+// }
 //
-//void FreeHandle(SEwindow* win, SEBuffer b, void* ptr) {
-//    SEVulkan* v = GetGraphics(win);
+// void FreeHandle(SEwindow* win, SEBuffer b, void* ptr) {
+//     SEVulkan* v = GetGraphics(win);
 //
-//    BufferAllocator alloc = v->bufAllocators.data[b.parent];
-//    vkUnmapMemory(v->dev, v->memory.mem.data[alloc.memid]);
-//}
+//     BufferAllocator alloc = v->bufAllocators.data[b.parent];
+//     vkUnmapMemory(v->dev, v->memory.mem.data[alloc.memid]);
+// }
