@@ -78,6 +78,17 @@ typedef struct SEVulkan {
     VkFence inFlight;
 
     struct {
+        bool8 anisotropy : 1;
+        //INFO(ELI): Add more flags as needed
+    } features;
+
+    struct {
+        struct {
+            float max;
+        } anisotropy;
+    } featureInfo;
+
+    struct {
         dynArray(MemoryManager) heaps;
         dynArray(VkDeviceMemory) mem;
         dynArray(u32) types;
@@ -220,6 +231,7 @@ typedef struct SERenderPipelineInfo {
     dynArray(PassInfo) passes;
     dynArray(PipelineInfo) pipeline;
     dynArray(DescriptorLayout) layouts;
+    dynArray(VkSamplerCreateInfo) samplers;
 } SERenderPipelineInfo;
 
 typedef struct Layout {
@@ -279,6 +291,7 @@ typedef struct SERenderPipeline {
     dynArray(BufferAllocator) bufAllocators;
     dynArray(Pass) passes;
     dynArray(Layout) layouts;
+    dynArray(VkSampler) samplers;
 
     dynArray(u32) resourceMapping; //maps resourceID to resource ie: vertBuffer or image
     dynArray(u32) passVertMapping;
@@ -332,5 +345,5 @@ void CreateSwapChain(SEwindow* win, SEVulkan* g, Allocator a);
 
 //Memory Helpers
 void CPUtoGPUBufferMemcpy(SEwindow* win, BufferAllocator* a, SEBuffer* dst, void* src, u32 size);
-
+void CPUtoGPUImageMemcpy(SEwindow *win, SEImage *dst, void *src, u32 width, u32 height, u32 pixSize);
 #endif

@@ -1,29 +1,26 @@
 #include <core/cutils.h>
-#include <se.h>
 #include <graphics/graphics_intern.h>
+#include <se.h>
 
-void SEConfigMaxGPUMem(SEwindow* win, SEMemType t, u64 size) {
-    SEVulkan* v = GetGraphics(win);
+void SEConfigMaxGPUMem(SEwindow *win, SEMemType t, u64 size) {
+    SEVulkan *v = GetGraphics(win);
 
     VkPhysicalDeviceMemoryProperties memProps;
     vkGetPhysicalDeviceMemoryProperties(v->pdev, &memProps);
 
     u32 flags = 0;
     switch (t) {
-        case SE_MEM_STATIC: 
-            flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-            break;
-        case SE_MEM_DYNAMIC:
-            flags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-            break;
+        case SE_MEM_STATIC: flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT; break;
+        case SE_MEM_DYNAMIC: flags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT; break;
     }
 
     for (u32 i = 0; i < memProps.memoryTypeCount; i++) {
         VkMemoryType type = memProps.memoryTypes[i];
 
-        if (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD) continue;
-        if (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD) continue;
+        if (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD)
+            continue;
+        if (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD)
+            continue;
 
         if ((type.propertyFlags & flags) == flags) {
             MemoryManager m = CreateManager(win->mem, size);
@@ -46,13 +43,11 @@ void SEConfigMaxGPUMem(SEwindow* win, SEMemType t, u64 size) {
     }
 }
 
-
 MemoryManager CreateManager(Allocator a, u32 size) {
     MemoryManager m = {
         .freelist.a = a,
     };
-    //figure out heap to use
-
+    // figure out heap to use
 
     MemoryRange r = {
         .offset = 0,
@@ -64,29 +59,25 @@ MemoryManager CreateManager(Allocator a, u32 size) {
     return m;
 }
 
-MemoryRange AllocateDeviceMem(MemoryManager* m, u32 size, u32 alignment) {
+MemoryRange AllocateDeviceMem(MemoryManager *m, u32 size, u32 alignment) {
 
     MemoryRange r = {};
 
-    //NOTE(ELI): Allocation math
-    //start = ((offset + size - 1)/size) * size
-    //size = size
+    // NOTE(ELI): Allocation math
+    // start = ((offset + size - 1)/size) * size
+    // size = size
 
-    //scan freelist for range which is at least as large
+    // scan freelist for range which is at least as large
     MemoryRange remainder;
     u32 idx = 0;
     for (u32 i = 0; i < m->freelist.size; i++) {
-        MemoryRange freeRange = {
-            .offset = ((m->freelist.data[i].offset + alignment - 1)/ alignment) * alignment,
-            .size = m->freelist.data[i].size
-        };
+        MemoryRange freeRange = {.offset = ((m->freelist.data[i].offset + alignment - 1) / alignment) * alignment,
+                                 .size = m->freelist.data[i].size};
 
         freeRange.size = freeRange.size - (freeRange.offset - m->freelist.data[i].offset);
 
-        remainder = (MemoryRange){
-            .offset = m->freelist.data[i].offset,
-            .size = (freeRange.offset - m->freelist.data[i].offset)
-        };
+        remainder = (MemoryRange){.offset = m->freelist.data[i].offset,
+                                  .size = (freeRange.offset - m->freelist.data[i].offset)};
         idx = i;
 
         if (freeRange.size < size) {
@@ -98,7 +89,7 @@ MemoryRange AllocateDeviceMem(MemoryManager* m, u32 size, u32 alignment) {
             break;
         }
         if (freeRange.size > size) {
-            r = freeRange; 
+            r = freeRange;
             MemoryRange fragment = {
                 .offset = freeRange.offset + size,
                 .size = freeRange.size - size,
@@ -113,15 +104,14 @@ MemoryRange AllocateDeviceMem(MemoryManager* m, u32 size, u32 alignment) {
         dynIns(m->freelist, idx, remainder);
     }
 
-
-    //return zero sized range if impossible to allocate
+    // return zero sized range if impossible to allocate
     return r;
 }
 
-void FreeDeviceMem(MemoryManager* m, MemoryRange r) {
+void FreeDeviceMem(MemoryManager *m, MemoryRange r) {
 
-    //insert into list in order
-    //This will auto merge non fragmented blocks
+    // insert into list in order
+    // This will auto merge non fragmented blocks
     u32 idx = 0;
     for (u32 i = 0; i < m->freelist.size; i++) {
         if (m->freelist.data[i].offset > r.offset) {
@@ -130,16 +120,16 @@ void FreeDeviceMem(MemoryManager* m, MemoryRange r) {
         }
     }
 
-    //check adjacent blocks and merge if possible
+    // check adjacent blocks and merge if possible
 
-    //merge into next
+    // merge into next
     MemoryRange post = m->freelist.data[idx];
     if (r.offset + r.size == post.offset) {
-        r.size += post.size; 
-        dynDel(m->freelist, idx); //delete
+        r.size += post.size;
+        dynDel(m->freelist, idx); // delete
     }
 
-    //merge into prev
+    // merge into prev
 
     if (idx == 0) {
         dynIns(m->freelist, idx, r);
@@ -148,31 +138,68 @@ void FreeDeviceMem(MemoryManager* m, MemoryRange r) {
 
     MemoryRange pre = m->freelist.data[idx - 1];
     if (r.offset == pre.offset + pre.size) {
-        //replace previous node
+        // replace previous node
         m->freelist.data[idx - 1].size += r.size;
     } else {
-        //insert node
+        // insert node
         dynIns(m->freelist, idx, r);
     }
-
 }
 
 void DestroyManager(MemoryManager m) {
-    //deallocate device memory
+    // deallocate device memory
     dynFree(m.freelist);
+}
+
+void transitionImage(VkQueue queue, VkCommandBuffer buf, SEImage *img, VkImageLayout oldlayout, VkImageLayout newlayout,
+                     u32 srcMask, u32 dstMask, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage) {
+    VkCommandBufferBeginInfo begInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    };
+    vkBeginCommandBuffer(buf, &begInfo);
+
+    VkImageMemoryBarrier barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .oldLayout = oldlayout,
+        .newLayout = newlayout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = img->img,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+            .levelCount = 1,
+        },
+
+        .srcAccessMask = srcMask,
+        .dstAccessMask = dstMask,
+    };
+
+    vkCmdPipelineBarrier(buf, srcStage, dstStage, 0, 0, NULL, 0, NULL, 1, &barrier);
+
+    vkEndCommandBuffer(buf);
+
+    VkSubmitInfo submit = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &buf,
+    };
+    vkQueueSubmit(queue, 1, &submit, 0);
 }
 
 #include <string.h>
 
-//synchronous memcpy
-void CPUtoGPUBufferMemcpy(SEwindow* win, BufferAllocator* a, SEBuffer* dst, void* src, u32 size) {
-    SEVulkan* v = GetGraphics(win);
+// synchronous memcpy
+void CPUtoGPUBufferMemcpy(SEwindow *win, BufferAllocator *a, SEBuffer *dst, void *src, u32 size) {
+    SEVulkan *v = GetGraphics(win);
 
     u32 remaining = size;
     while (remaining) {
         u32 num_bytes = MIN(PAGE_SIZE, remaining);
-        memcpy(v->transfer.ptr, src + (size - remaining), num_bytes); 
-        
+        memcpy(v->transfer.ptr, src + (size - remaining), num_bytes);
+
         VkCommandBufferBeginInfo info = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         };
@@ -180,11 +207,7 @@ void CPUtoGPUBufferMemcpy(SEwindow* win, BufferAllocator* a, SEBuffer* dst, void
 
         vkResetCommandBuffer(v->transfer.cmd, 0);
         vkBeginCommandBuffer(v->transfer.cmd, &info);
-        VkBufferCopy cpy = {
-            .size = num_bytes,
-            .srcOffset = 0,
-            .dstOffset = dst->r.offset + (size - remaining)
-        };
+        VkBufferCopy cpy = {.size = num_bytes, .srcOffset = 0, .dstOffset = dst->r.offset + (size - remaining)};
         vkCmdCopyBuffer(v->transfer.cmd, v->transfer.buf, a->b, 1, &cpy);
         vkEndCommandBuffer(v->transfer.cmd);
 
@@ -197,4 +220,87 @@ void CPUtoGPUBufferMemcpy(SEwindow* win, BufferAllocator* a, SEBuffer* dst, void
 
         remaining -= num_bytes;
     }
+}
+
+void CPUtoGPUImageMemcpy(SEwindow *win, SEImage *dst, void *src, u32 width, u32 height, u32 pixSize) {
+    SEVulkan *v = GetGraphics(win);
+    debuglog("Imge: size (%d, %d), %d", width, height, pixSize);
+
+    transitionImage(v->queues.transfer,
+            v->transfer.cmd,
+            dst,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            0,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+    u32 remaining = width * height * pixSize;
+    u32 size = remaining;
+    u32 minBlock = PAGE_SIZE;
+    minBlock = minBlock / pixSize;
+    minBlock = MIN(minBlock, width);
+    minBlock *= pixSize;
+
+    while (remaining) {
+        u32 num_bytes = MIN(minBlock, remaining);
+        num_bytes -= num_bytes % (pixSize);
+
+        memcpy(v->transfer.ptr, src + (size - remaining), num_bytes);
+
+        u32 offset = (size - remaining) / pixSize;
+
+        u32 woffset = offset % width;
+        u32 hoffset = offset / width;
+
+        u32 wextant = num_bytes / pixSize; 
+        u32 hextant = 1;
+
+        VkCommandBufferBeginInfo info = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        };
+        vkQueueWaitIdle(v->queues.transfer);
+
+        vkResetCommandBuffer(v->transfer.cmd, 0);
+        vkBeginCommandBuffer(v->transfer.cmd, &info);
+        VkBufferImageCopy cpy = {
+            .bufferImageHeight = 0,
+            .bufferRowLength = 0,
+            .bufferOffset = 0,
+            .imageSubresource = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseArrayLayer = 0,
+                .mipLevel = 0,
+                .layerCount = 1,
+            },
+            .imageOffset = {woffset, hoffset, 0},
+            .imageExtent = {wextant, hextant, 1},
+        };
+        vkCmdCopyBufferToImage(v->transfer.cmd, v->transfer.buf, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                               &cpy);
+        vkEndCommandBuffer(v->transfer.cmd);
+
+        VkSubmitInfo submit = {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &v->transfer.cmd,
+        };
+        vkQueueSubmit(v->queues.transfer, 1, &submit, VK_NULL_HANDLE);
+
+        remaining -= num_bytes;
+    }
+
+    vkQueueWaitIdle(v->queues.transfer);
+    vkResetCommandBuffer(v->transfer.cmd, 0);
+    transitionImage(v->queues.transfer,
+            v->transfer.cmd,
+            dst,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            0,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+    //vkQueueWaitIdle(v->queues.transfer);
 }

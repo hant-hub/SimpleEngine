@@ -195,6 +195,10 @@ u32 PhysicalDeviceScore(VkPhysicalDevice p, VkSurfaceKHR surf, SwapChainInfo* de
     VkPhysicalDeviceFeatures feats;
     vkGetPhysicalDeviceFeatures(p, &feats);
 
+    if (feats.samplerAnisotropy) {
+        score += 20;
+    }
+
     if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
         score += 100;
     }
@@ -310,7 +314,19 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         }
         StackDestroy(a, scores);
         assert(maxscore); //we found a suitable device
+        
+        //set important feature flags
         g->pdev = dev;
+
+        {
+            VkPhysicalDeviceFeatures feats;
+            vkGetPhysicalDeviceFeatures(g->pdev, &feats);
+
+            if (feats.samplerAnisotropy) {
+                g->features.anisotropy = TRUE;
+            }
+        }
+
 
         u32 familyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(dev, &familyCount, NULL); 
@@ -385,6 +401,10 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
             };
         }
 
+        VkPhysicalDeviceFeatures feats = {
+            .samplerAnisotropy = g->features.anisotropy,
+        };
+
         VkDeviceCreateInfo devInfo = {
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             .queueCreateInfoCount = num_queues,
@@ -392,6 +412,7 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
             .enabledLayerCount = 0,
             .ppEnabledExtensionNames = ldevExtensions,
             .enabledExtensionCount = ARRAY_SIZE(ldevExtensions),
+            .pEnabledFeatures = &feats,
         };
 
         debuglog("Queue Num: %d", num_queues);
@@ -552,6 +573,12 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         SEConfigMaxGPUMem(win, SE_MEM_DYNAMIC, s.memory.max_dynamic_mem);
     }
 
+    //configure feature info
+    {
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(g->pdev, &props);
+        g->featureInfo.anisotropy.max = props.limits.maxSamplerAnisotropy; 
+    }
 }
 
 

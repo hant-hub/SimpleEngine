@@ -1,9 +1,11 @@
 #include "se.h"
 #include "core/cutils.h"
-#include <graphics/graphics_intern.h>
 #include <vulkan/vulkan.h>
 #include <time.h>
 #include <unistd.h>
+#include <graphics/graphics.h>
+
+#include <string.h>
 
 
 
@@ -42,13 +44,30 @@ int main() {
     u32 ubuf = SEAddUniformBuffer(win, r, SE_MEM_DYNAMIC, 16 * 3);
     u32 layout = SEAddDescriptorLayout(win, r);
 
-    u32 tex = SEAddTexture(win, r, SE_IMAGE_RGBA_8, 100, 100);
+    u32 sampler = SEAddTextureSampler(win, r);
+    u32 tex1 = SEAddTexture(win, r, SE_IMAGE_RGBA_8, 100, 100);
+    u32 tex2 = SEAddTexture(win, r, SE_IMAGE_RGBA_8, 100, 100);
+
+    char* imgdata = Alloc(GlobalAllocator, 4 * 100 * 100);
+    for (u32 i = 0; i < 100 * 100; i++) {
+        if ((i/5) % 2 == 0) {
+            imgdata[i * 4 + 0] = 0;
+            imgdata[i * 4 + 1] = -1;
+            imgdata[i * 4 + 2] = 0;
+        } else {
+            imgdata[i * 4 + 0] = -1;
+            imgdata[i * 4 + 1] = 0;
+            imgdata[i * 4 + 2] = 0;
+        }
+        imgdata[i*4 + 3] = -1;
+    }
 
     SEAddDescriptorBinding(win, r, layout, SE_SHADER_VERTEX, SE_UNIFORM_BUFFER, 1);
+    SEAddDescriptorBinding(win, r, layout, SE_SHADER_FRAGMENT, SE_TEXTURE_2D, 1);
 
     u32 pipeConfig = SEAddPipeline(win, r, layout);
-    SESetShaderFrag(win, r, pipeConfig, sstring("../shaders/basic.frag.spv"));
-    SESetShaderVertex(win, r, pipeConfig, sstring("../shaders/basic_vert.vert.spv"));
+    SESetShaderFrag(win, r, pipeConfig, sstring("../shaders/basic_tex.frag.spv"));
+    SESetShaderVertex(win, r, pipeConfig, sstring("../shaders/basic_tex.vert.spv"));
     SEAddVertexBinding(r, pipeConfig, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
     
     u32 color_pass = SENewPass(win, r);
@@ -64,6 +83,7 @@ int main() {
     SESetScissor(pipe, color_pass, 0.0f, 0.0f, 1.0f, 1.0f);
 
     SEBindUniformBuffer(win, pipe, color_pass, ubuf, 0);
+    SEBindTexture(win, pipe, color_pass, tex1, sampler, 1);
 
     v2f* verts = SERetrieveDynBuf(win, pipe, vbuf);
     verts[0] = (v2f){0.0, -0.5};
@@ -77,6 +97,8 @@ int main() {
     uniforms[10] = 1.0f;
     SEUnmapDynBuf(win, pipe, ubuf);
 
+    SEUploadImage(win, pipe, tex1, imgdata, 0);
+    memset(imgdata, 100, 4 * 100 * 100);
 
 
     /*
@@ -111,6 +133,22 @@ int main() {
             if (win->keystate[KEY_S] == KEY_RELEASED) {
                 SESetViewPort(pipe, color_pass, 0.0f, 0.0f, 1.0f, 1.0f);
                 SESetScissor(pipe, color_pass, 0.0f, 0.0f, 1.0f, 1.0f);
+                active = TRUE;
+            }
+
+        }
+        {
+            static bool8 active = TRUE;
+            if (win->keystate[KEY_D] == KEY_PRESSED && active) {
+                active = FALSE;
+                static bool8 flipflop = FALSE;
+                SEUploadImage(win, pipe, flipflop ? tex1 : tex2, imgdata, 0);
+                SEBindTexture(win, pipe, color_pass, flipflop ? tex1 : tex2, sampler, 1);
+                memset(imgdata, flipflop ? 255 : 100, 4 * 100 * 100);
+                flipflop = !flipflop;
+            }
+
+            if (win->keystate[KEY_D] == KEY_RELEASED) {
                 active = TRUE;
             }
         }

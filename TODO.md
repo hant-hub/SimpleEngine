@@ -53,11 +53,11 @@
         - [X] Calc Number of sets required
         - [X] create layout pool
         - [X] Allocate Uniform Buffers
-    - [ ] Textures
-        - [ ] Add Binding Type
-        - [ ] Add to image
+    - [X] Textures
+        - [X] Add Binding Type
+        - [X] Add to image
     - [ ] Shader Storage (only read and compile once)
-    - [ ] Texture Data
+    - [X] Texture Data
 
 
 ## Quality of Life:

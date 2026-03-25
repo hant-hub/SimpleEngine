@@ -28,9 +28,6 @@ typedef enum SEMemType {
     SE_MEM_DYNAMIC,
 } SEMemType;
 
-typedef struct SEGraphicsSettings {
-} SEGraphicsSettings;
-
 typedef struct MemoryRange {
     u32 offset;
     u32 size;
@@ -74,6 +71,7 @@ u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r, u32 layout);
 u32 SEAddVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 size);
 u32 SEAddUniformBuffer(SEwindow* win, SERenderPipelineInfo *r, SEMemType t, u32 size);
 u32 SEAddTexture(SEwindow* win, SERenderPipelineInfo* r, SEImageFormat format, u32 width, u32 height);
+u32 SEAddTextureSampler(SEwindow* win, SERenderPipelineInfo* r);
 
 void SEUseVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID);
 void SEWriteColorAttachment(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID);
@@ -97,8 +95,10 @@ void SEDestroyPipeline(SEwindow *win, SERenderPipeline *p);
 void *SERetrieveDynBuf(SEwindow *win, SERenderPipeline *p, u32 buffer);
 void SEUnmapDynBuf(SEwindow* win, SERenderPipeline *p, u32 buffer);
 void SEBindUniformBuffer(SEwindow* win, SERenderPipeline* p, u32 pass, u32 buffer, u32 binding);
+void SEBindTexture(SEwindow *win, SERenderPipeline *p, u32 pass, u32 tex, u32 sampler, u32 binding);
 
 void SEUploadBuffer(SEwindow *win, SERenderPipeline *r, u32 resourceID, void *data, u32 size);
+void SEUploadImage(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* data, u32 size);
 void SEDrawPipeline(SEwindow *win, SERenderPipeline *r);
 
 #endif
