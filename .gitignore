@@ -3,3 +3,4 @@ build/*
 sb
 compile_commands.json
 lib/*
+assets/*
