@@ -14,9 +14,9 @@ vec3 colors[3] = vec3[](
 );
 
 vec2 texCoords[3] = vec2[](
-        vec2(0.0, 1.0f),
-        vec2(0.0f, 0.0f),
-        vec2(1.0f, 0.0f)
+        vec2(0.5f, 0.0f),
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 1.0f)
 );
 
 void main() {

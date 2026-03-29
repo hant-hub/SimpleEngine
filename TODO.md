@@ -40,9 +40,9 @@
                 - [X] vec3
                 - [ ] vec4
     - [X] Switch to Updated Cutils
-    - [ ] Index Buffer Support
-        - [ ] Add Buffer
-        - [ ] Alter Draw command to use index buffer
+    - [X] Index Buffer Support
+        - [X] Add Buffer
+        - [X] Alter Draw command to use index buffer
     - [X] Get Framebuffer to use correct size
         - [X] Store on Pass using shrinking algorithm
         - [X] Allow setting viewport (Put on Pass)
@@ -58,6 +58,11 @@
         - [X] Add to image
     - [ ] Shader Storage (only read and compile once)
     - [X] Texture Data
+- [ ] Depth Buffering
+    - [ ] New image
+        - [ ] Select Depth Format
+        - [ ] update CreateImage
+    - [ ] New Resource Type
 
 
 ## Quality of Life:

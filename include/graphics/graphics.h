@@ -13,6 +13,11 @@ typedef enum SEBufType {
     SE_BUFFER_UNIFORM,
 } SEBufType;
 
+typedef enum SEIndexType {
+    SE_INDEX_U32 = 0, //anchor to zero
+    SE_INDEX_U16,
+} SEIndexType;
+
 typedef enum SEImageFormat {
     SE_IMAGE_RGBA_32 = 0,
     SE_IMAGE_RGBA_8,
@@ -66,14 +71,17 @@ SERenderPipelineInfo *SECreateRenderPipeline(SEwindow *win);
 void SEDestroyRenderPipelineInfo(SEwindow *win, SERenderPipelineInfo *r);
 
 u32 SEAddColorAttachment(SEwindow *win, SERenderPipelineInfo *r);
+u32 SEAddDepthAttachment(SEwindow* win, SERenderPipelineInfo *r);
 u32 SENewPass(SEwindow *win, SERenderPipelineInfo *r);
 u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r, u32 layout);
 u32 SEAddVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 size);
+u32 SEAddIndexBuffer(SEwindow* win, SERenderPipelineInfo* r, SEMemType t, u32 size);
 u32 SEAddUniformBuffer(SEwindow* win, SERenderPipelineInfo *r, SEMemType t, u32 size);
 u32 SEAddTexture(SEwindow* win, SERenderPipelineInfo* r, SEImageFormat format, u32 width, u32 height);
 u32 SEAddTextureSampler(SEwindow* win, SERenderPipelineInfo* r);
 
 void SEUseVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID);
+void SEUseIndexBuffer(SEwindow* win, SERenderPipelineInfo* r, u32 pass, u32 resourceID, SEIndexType index_type);
 void SEWriteColorAttachment(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID);
 void SESetBackBuffer(SERenderPipelineInfo *r, u32 resourceID);
 void SEUsePipeline(SERenderPipelineInfo *r, u32 pass, u32 pipe);
@@ -98,7 +106,7 @@ void SEBindUniformBuffer(SEwindow* win, SERenderPipeline* p, u32 pass, u32 buffe
 void SEBindTexture(SEwindow *win, SERenderPipeline *p, u32 pass, u32 tex, u32 sampler, u32 binding);
 
 void SEUploadBuffer(SEwindow *win, SERenderPipeline *r, u32 resourceID, void *data, u32 size);
-void SEUploadImage(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* data, u32 size);
+void SEUploadImage(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* data);
 void SEDrawPipeline(SEwindow *win, SERenderPipeline *r);
 
 #endif

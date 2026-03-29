@@ -77,6 +77,8 @@ typedef struct SEVulkan {
     dynArray(VkSemaphore) renderfinished;
     VkFence inFlight;
 
+    dynArray(VkShaderModule) shaders;
+
     struct {
         bool8 anisotropy : 1;
         //INFO(ELI): Add more flags as needed
@@ -101,6 +103,7 @@ typedef struct SEVulkan {
         VkCommandPool pool;
         VkCommandBuffer cmd;
         VkDeviceMemory mem;
+        VkFence fence;
         VkBuffer buf;
         void* ptr;
     } transfer;
@@ -140,12 +143,6 @@ typedef struct SEVulkan {
         VkImage* imgs;
         VkImageView* views;
     } swapchain;
-
-    struct {
-        ShaderPool shaders;
-        LayoutPool layouts;
-        PipelinePool pipelines;
-    } resources;
 
     #ifdef DEBUG
     VkDebugUtilsMessengerEXT debugMessenger;
@@ -222,6 +219,14 @@ typedef struct DescriptorLayout {
 typedef struct PassInfo {
     dynArray(u32) color_attachments; 
     dynArray(u32) vertex_buffers;
+    u32 index_buffer;
+
+    struct {
+        u32 depth_buffer;
+        bool8 clear_depth;
+    } depth;
+
+    VkIndexType index_type;
     u32 pipeline;
 } PassInfo;
 
@@ -253,6 +258,10 @@ typedef struct Pass {
             u32 start;
             u32 num;
         } verts;
+        struct {
+            u32 buf;
+            VkIndexType type;
+        } index;
     } resources;
 
     VkViewport view;
@@ -279,6 +288,8 @@ typedef enum BufAllocType {
     BUF_ALLOC_VERT_DYN,
     BUF_ALLOC_UNIFORM_STATIC,
     BUF_ALLOC_UNIFORM_DYN,
+    BUF_ALLOC_INDEX_STATIC,
+    BUF_ALLOC_INDEX_DYN,
     BUF_ALLOC_NUM,
     BUF_ALLOC_INVALID = ~0,
 } BufAllocType;

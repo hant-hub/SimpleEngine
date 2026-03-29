@@ -251,6 +251,32 @@ u32 PhysicalDeviceScore(VkPhysicalDevice p, VkSurfaceKHR surf, SwapChainInfo* de
     return score * presentSupport * extensionSupport * swapSupport;//0 is unsuitable, anything else is suitable
 }
 
+u32 AddShader(SEwindow* win, SString filename) {
+    SEVulkan *v = GetGraphics(win);
+    ScratchArena sc = ScratchArenaGet(NULL);
+
+    file f = fileopen(filename, FILE_READ);
+
+    char *data = ArenaAlloc(&sc.arena, f.stats.size + sizeof(u32));
+
+    uintptr_t aligned = (uintptr_t)data;
+    if (aligned % sizeof(u32))
+        aligned += sizeof(u32) - (aligned % sizeof(u32));
+
+    SString buffer = {
+        .data = (i8 *)aligned,
+        .len = f.stats.size,
+    };
+    fileread(buffer, f);
+    fileclose(f);
+
+    VkShaderModule mod = CompileShader(v, buffer);
+    dynPush(v->shaders, mod);
+    ScratchArenaEnd(sc);
+
+    return v->shaders.size - 1;
+}
+
 
 //Platform agnostic vulkan code
 void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g, SEsettings* settings) {
@@ -262,15 +288,13 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
     g->inst = inst;
     g->surf = surf;
 
-    g->resources.shaders.a = a;
-    g->resources.layouts.a = a;
-    g->resources.pipelines.a = a;
     g->imgAvalible.a = a;
     g->renderfinished.a = a;
     g->memory.heaps.a = a;
     g->memory.mem.a = a;
     g->memory.types.a = a;
     g->memory.props.a = a;
+    g->shaders.a = a;
 
     VkDebugUtilsMessengerCreateInfoEXT messengerInfo = {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -484,6 +508,11 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         };
 
         vkCreateBuffer(g->dev, &info, NULL, &g->transfer.buf);
+        VkFenceCreateInfo fenceInfo = {
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+        };
+        vkCreateFence(g->dev, &fenceInfo, NULL, &g->transfer.fence);
 
         VkMemoryRequirements reqs;
         vkGetBufferMemoryRequirements(g->dev, g->transfer.buf, &reqs);
@@ -608,23 +637,14 @@ void DestroyVulkan(SEVulkan g, Allocator a) {
         vkDestroySemaphore(g.dev, g.renderfinished.data[i], NULL);
     }
     vkDestroyFence(g.dev, g.inFlight, NULL);
+    vkDestroyFence(g.dev, g.transfer.fence, NULL);
     dynFree(g.imgAvalible);
     dynFree(g.renderfinished);
     
-    for (u32 i = 0; i < g.resources.shaders.cap; i++) {
-        vkDestroyShaderModule(g.dev, g.resources.shaders.slots[i], NULL);
+    for (u32 i = 0; i < g.shaders.size; i++) {
+        vkDestroyShaderModule(g.dev, g.shaders.data[i], NULL);
     }
-    ShaderPoolDestroy(&g.resources.shaders);
-
-    for (u32 i = 0; i < g.resources.layouts.cap; i++) {
-        vkDestroyPipelineLayout(g.dev, g.resources.layouts.slots[i], NULL);
-    }
-    LayoutPoolDestroy(&g.resources.layouts);
-
-    for (u32 i = 0; i < g.resources.pipelines.cap; i++) {
-        vkDestroyPipeline(g.dev, g.resources.pipelines.slots[i], NULL);
-    }
-    PipelinePoolDestroy(&g.resources.pipelines);
+    dynFree(g.shaders);
 
     vkDestroyCommandPool(g.dev, g.pool, NULL);
     vkDestroyCommandPool(g.dev, g.transfer.pool, NULL);

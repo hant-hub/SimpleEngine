@@ -324,7 +324,7 @@ int main(int argc, char *argv[]) {
             sb_cmd_main("cp");
             sb_cmd_opt("r");
             sb_cmd_arg("assets");
-            sb_cmd_arg("build/assets");
+            sb_cmd_arg("build/");
         }
 
         sb_EXEC() {

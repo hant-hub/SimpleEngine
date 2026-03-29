@@ -151,8 +151,9 @@ void DestroyManager(MemoryManager m) {
     dynFree(m.freelist);
 }
 
-void transitionImage(VkQueue queue, VkCommandBuffer buf, SEImage *img, VkImageLayout oldlayout, VkImageLayout newlayout,
+void transitionImage(SEVulkan* v, VkCommandBuffer buf, SEImage *img, VkImageLayout oldlayout, VkImageLayout newlayout,
                      u32 srcMask, u32 dstMask, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage) {
+
     VkCommandBufferBeginInfo begInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
     };
@@ -186,7 +187,7 @@ void transitionImage(VkQueue queue, VkCommandBuffer buf, SEImage *img, VkImageLa
         .commandBufferCount = 1,
         .pCommandBuffers = &buf,
     };
-    vkQueueSubmit(queue, 1, &submit, 0);
+    vkQueueSubmit(v->queues.transfer, 1, &submit, v->transfer.fence);
 }
 
 #include <string.h>
@@ -203,7 +204,9 @@ void CPUtoGPUBufferMemcpy(SEwindow *win, BufferAllocator *a, SEBuffer *dst, void
         VkCommandBufferBeginInfo info = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         };
-        vkQueueWaitIdle(v->queues.transfer);
+
+        vkWaitForFences(v->dev, 1, &v->transfer.fence, VK_TRUE, UINT32_MAX);
+        vkResetFences(v->dev, 1, &v->transfer.fence);
 
         vkResetCommandBuffer(v->transfer.cmd, 0);
         vkBeginCommandBuffer(v->transfer.cmd, &info);
@@ -216,7 +219,7 @@ void CPUtoGPUBufferMemcpy(SEwindow *win, BufferAllocator *a, SEBuffer *dst, void
             .commandBufferCount = 1,
             .pCommandBuffers = &v->transfer.cmd,
         };
-        vkQueueSubmit(v->queues.transfer, 1, &submit, VK_NULL_HANDLE);
+        vkQueueSubmit(v->queues.transfer, 1, &submit, v->transfer.fence);
 
         remaining -= num_bytes;
     }
@@ -226,7 +229,9 @@ void CPUtoGPUImageMemcpy(SEwindow *win, SEImage *dst, void *src, u32 width, u32 
     SEVulkan *v = GetGraphics(win);
     debuglog("Imge: size (%d, %d), %d", width, height, pixSize);
 
-    transitionImage(v->queues.transfer,
+    vkWaitForFences(v->dev, 1, &v->transfer.fence, VK_TRUE, UINT32_MAX);
+    vkResetFences(v->dev, 1, &v->transfer.fence);
+    transitionImage(v,
             v->transfer.cmd,
             dst,
             VK_IMAGE_LAYOUT_UNDEFINED,
@@ -243,57 +248,64 @@ void CPUtoGPUImageMemcpy(SEwindow *win, SEImage *dst, void *src, u32 width, u32 
     minBlock = MIN(minBlock, width);
     minBlock *= pixSize;
 
-    while (remaining) {
-        u32 num_bytes = MIN(minBlock, remaining);
-        num_bytes -= num_bytes % (pixSize);
+    //one copy per line
+    for (u32 i = 0; i < height; i++) {
+        u32 remaining = width * pixSize;
+        u32 size = remaining;
 
-        memcpy(v->transfer.ptr, src + (size - remaining), num_bytes);
+        while (remaining) {
+            u32 num_bytes = MIN(PAGE_SIZE, remaining);
+            num_bytes -= num_bytes % (pixSize);
 
-        u32 offset = (size - remaining) / pixSize;
+            memcpy(v->transfer.ptr, src + (i*width*pixSize) + (size - remaining), num_bytes);
 
-        u32 woffset = offset % width;
-        u32 hoffset = offset / width;
+            u32 woffset = (size - remaining) / pixSize;
+            u32 hoffset = i; 
 
-        u32 wextant = num_bytes / pixSize; 
-        u32 hextant = 1;
+            u32 wextant = num_bytes / pixSize; 
+            u32 hextant = 1;
 
-        VkCommandBufferBeginInfo info = {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        };
-        vkQueueWaitIdle(v->queues.transfer);
+            vkWaitForFences(v->dev, 1, &v->transfer.fence, VK_TRUE, UINT32_MAX);
+            vkResetFences(v->dev, 1, &v->transfer.fence);
 
-        vkResetCommandBuffer(v->transfer.cmd, 0);
-        vkBeginCommandBuffer(v->transfer.cmd, &info);
-        VkBufferImageCopy cpy = {
-            .bufferImageHeight = 0,
-            .bufferRowLength = 0,
-            .bufferOffset = 0,
-            .imageSubresource = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseArrayLayer = 0,
-                .mipLevel = 0,
-                .layerCount = 1,
-            },
-            .imageOffset = {woffset, hoffset, 0},
-            .imageExtent = {wextant, hextant, 1},
-        };
-        vkCmdCopyBufferToImage(v->transfer.cmd, v->transfer.buf, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                               &cpy);
-        vkEndCommandBuffer(v->transfer.cmd);
+            VkCommandBufferBeginInfo info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            };
 
-        VkSubmitInfo submit = {
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .commandBufferCount = 1,
-            .pCommandBuffers = &v->transfer.cmd,
-        };
-        vkQueueSubmit(v->queues.transfer, 1, &submit, VK_NULL_HANDLE);
+            vkResetCommandBuffer(v->transfer.cmd, 0);
+            vkBeginCommandBuffer(v->transfer.cmd, &info);
+            VkBufferImageCopy cpy = {
+                .bufferImageHeight = 0,
+                .bufferRowLength = 0,
+                .bufferOffset = 0,
+                .imageSubresource = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseArrayLayer = 0,
+                    .mipLevel = 0,
+                    .layerCount = 1,
+                },
+                .imageOffset = {woffset, hoffset, 0},
+                .imageExtent = {wextant, hextant, 1},
+            };
+            vkCmdCopyBufferToImage(v->transfer.cmd, v->transfer.buf, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                    &cpy);
+            vkEndCommandBuffer(v->transfer.cmd);
 
-        remaining -= num_bytes;
+            VkSubmitInfo submit = {
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                .commandBufferCount = 1,
+                .pCommandBuffers = &v->transfer.cmd,
+            };
+            vkQueueSubmit(v->queues.transfer, 1, &submit, v->transfer.fence);
+
+            remaining -= num_bytes;
+        }
     }
 
-    vkQueueWaitIdle(v->queues.transfer);
+    vkWaitForFences(v->dev, 1, &v->transfer.fence, VK_TRUE, UINT32_MAX);
+    vkResetFences(v->dev, 1, &v->transfer.fence);
     vkResetCommandBuffer(v->transfer.cmd, 0);
-    transitionImage(v->queues.transfer,
+    transitionImage(v,
             v->transfer.cmd,
             dst,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -302,5 +314,4 @@ void CPUtoGPUImageMemcpy(SEwindow *win, SEImage *dst, void *src, u32 width, u32 
             0,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-    //vkQueueWaitIdle(v->queues.transfer);
 }

@@ -1,5 +1,6 @@
 #include "se.h"
 #include "core/cutils.h"
+#include <sill/sill.h>
 #include <vulkan/vulkan.h>
 #include <time.h>
 #include <unistd.h>
@@ -45,22 +46,16 @@ int main() {
     u32 layout = SEAddDescriptorLayout(win, r);
 
     u32 sampler = SEAddTextureSampler(win, r);
-    u32 tex1 = SEAddTexture(win, r, SE_IMAGE_RGBA_8, 100, 100);
-    u32 tex2 = SEAddTexture(win, r, SE_IMAGE_RGBA_8, 100, 100);
 
-    char* imgdata = Alloc(GlobalAllocator, 4 * 100 * 100);
-    for (u32 i = 0; i < 100 * 100; i++) {
-        if ((i/5) % 2 == 0) {
-            imgdata[i * 4 + 0] = 0;
-            imgdata[i * 4 + 1] = -1;
-            imgdata[i * 4 + 2] = 0;
-        } else {
-            imgdata[i * 4 + 0] = -1;
-            imgdata[i * 4 + 1] = 0;
-            imgdata[i * 4 + 2] = 0;
-        }
-        imgdata[i*4 + 3] = -1;
-    }
+    ScratchArena sc = ScratchArenaGet(NULL);
+
+    file imgfile = fileopen(sstring("../assets/kermit.bmp"), FILE_READ);
+    u32 width, height;
+    u32 channels = 4;
+    char* imgdata = BMPread(sc.arena, &imgfile, &width, &height, &channels);
+    fileclose(imgfile);
+
+    u32 tex1 = SEAddTexture(win, r, SE_IMAGE_RGBA_8, width, height);
 
     SEAddDescriptorBinding(win, r, layout, SE_SHADER_VERTEX, SE_UNIFORM_BUFFER, 1);
     SEAddDescriptorBinding(win, r, layout, SE_SHADER_FRAGMENT, SE_TEXTURE_2D, 1);
@@ -97,8 +92,8 @@ int main() {
     uniforms[10] = 1.0f;
     SEUnmapDynBuf(win, pipe, ubuf);
 
-    SEUploadImage(win, pipe, tex1, imgdata, 0);
-    memset(imgdata, 100, 4 * 100 * 100);
+    SEUploadImage(win, pipe, tex1, imgdata);
+    //memset(imgdata, 100, 4 * 100 * 100);
 
 
     /*
@@ -136,21 +131,6 @@ int main() {
                 active = TRUE;
             }
 
-        }
-        {
-            static bool8 active = TRUE;
-            if (win->keystate[KEY_D] == KEY_PRESSED && active) {
-                active = FALSE;
-                static bool8 flipflop = FALSE;
-                SEUploadImage(win, pipe, flipflop ? tex1 : tex2, imgdata, 0);
-                SEBindTexture(win, pipe, color_pass, flipflop ? tex1 : tex2, sampler, 1);
-                memset(imgdata, flipflop ? 255 : 100, 4 * 100 * 100);
-                flipflop = !flipflop;
-            }
-
-            if (win->keystate[KEY_D] == KEY_RELEASED) {
-                active = TRUE;
-            }
         }
 
         SEExecutePipeline(win, pipe);

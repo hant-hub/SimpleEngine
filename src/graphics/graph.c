@@ -84,18 +84,38 @@ u32 SEAddColorAttachment(SEwindow *win, SERenderPipelineInfo *r) {
     SEVulkan *v = GetGraphics(win);
     dynPush(r->resources, (Resource){0});
     dynBack(r->resources) = (Resource){
-      .type = RESOURCE_IMAGE,
-      .resourceInfo.img =
-          {
-              .width = 1.0,
-              .height = 1.0,
-              .swapRel = TRUE,
-              .persist = FALSE,
-              .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-              .format = v->swapchain.format.format,
-              .layout = VK_IMAGE_LAYOUT_UNDEFINED,
-          },
-  };
+        .type = RESOURCE_IMAGE,
+        .resourceInfo.img =
+        {
+            .width = 1.0,
+            .height = 1.0,
+            .swapRel = TRUE,
+            .persist = FALSE,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .format = v->swapchain.format.format,
+            .layout = VK_IMAGE_LAYOUT_UNDEFINED,
+        },
+    };
+
+    return r->resources.size - 1;
+}
+
+u32 SEAddDepthAttachment(SEwindow* win, SERenderPipelineInfo *r) {
+    SEVulkan *v = GetGraphics(win);
+    dynPush(r->resources, (Resource){0});
+    dynBack(r->resources) = (Resource){
+        .type = RESOURCE_IMAGE,
+        .resourceInfo.img =
+        {
+            .width = 1.0,
+            .height = 1.0,
+            .swapRel = TRUE,
+            .persist = FALSE,
+            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .format = VK_FORMAT_D32_SFLOAT_S8_UINT,
+            .layout = VK_IMAGE_LAYOUT_UNDEFINED,
+        },
+    };
 
     return r->resources.size - 1;
 }
@@ -107,6 +127,20 @@ u32 SEAddVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 s
         .resourceInfo.buf = {
             .memType = t,
             .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            .size = size,
+        },
+    };
+
+    return r->resources.size - 1;
+}
+
+u32 SEAddIndexBuffer(SEwindow* win, SERenderPipelineInfo* r, SEMemType t, u32 size) {
+    dynPush(r->resources, (Resource){0});
+    dynBack(r->resources) = (Resource) {
+        .type = RESOURCE_BUFFER,
+        .resourceInfo.buf = {
+            .memType = t,
+            .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
             .size = size,
         },
     };
@@ -257,7 +291,7 @@ void SEUploadBuffer(SEwindow *win, SERenderPipeline *r, u32 resourceID, void *da
 }
 
 
-void SEUploadImage(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* data, u32 size) {
+void SEUploadImage(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* data) {
     SEVulkan *v = GetGraphics(win);
 
     u32 idx = r->resourceMapping.data[resourceID];
@@ -417,6 +451,7 @@ u32 SENewPass(SEwindow *win, SERenderPipelineInfo *r) {
     dynPush(r->passes, ((PassInfo){
                            .color_attachments.a = win->mem,
                            .vertex_buffers.a = win->mem,
+                           .index_buffer = -1,
                        }));
 
     return r->passes.size - 1;
@@ -428,8 +463,23 @@ void SEWriteColorAttachment(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u3
     dynPush(r->passes.data[pass].color_attachments, resourceID);
 }
 
+void SEUseDepthAttachment(SEwindow* win, SERenderPipelineInfo *r, u32 pass, bool8 clear, u32 resourceID) {
+    r->passes.data[pass].depth.depth_buffer = resourceID;
+    r->passes.data[pass].depth.clear_depth = clear;
+}
+
 void SEUseVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID) {
     dynPush(r->passes.data[pass].vertex_buffers, resourceID);
+}
+
+static VkIndexType SEtoVKIndex[] = {
+    [SE_INDEX_U32] = VK_INDEX_TYPE_UINT32,
+    [SE_INDEX_U16] = VK_INDEX_TYPE_UINT16,
+};
+
+void SEUseIndexBuffer(SEwindow* win, SERenderPipelineInfo* r, u32 pass, u32 resourceID, SEIndexType index_type) {
+    r->passes.data[pass].index_buffer = resourceID;
+    r->passes.data[pass].index_type = SEtoVKIndex[index_type];
 }
 
 void SESetBackBuffer(SERenderPipelineInfo *r, u32 resourceID) {
@@ -551,7 +601,9 @@ void SEExecutePipeline(SEwindow *win, SERenderPipeline *p) {
     prev = counter;
     counter = (counter + 1) % v->swapchain.imgcount;
 
-    vkWaitForFences(v->dev, 1, &v->inFlight, TRUE, UINT32_MAX);
+    //wait for transfer operations to finish
+    VkFence fences[] = {v->inFlight, v->transfer.fence};
+    vkWaitForFences(v->dev, 2, fences, TRUE, UINT32_MAX);
 
     vkResetCommandBuffer(p->cmdBufs[counter], 0);
 
@@ -634,13 +686,21 @@ void SEExecutePipeline(SEwindow *win, SERenderPipeline *p) {
             }
             vkCmdBindVertexBuffers(p->cmdBufs[counter], 0, pass->resources.verts.num, vertBuffers, vertOffsets);
         }
+        if (pass->resources.index.buf != -1) {
+            u32 memid = p->buffers.data[pass->resources.index.buf].parent;
+            vkCmdBindIndexBuffer(p->cmdBufs[counter],
+                    p->bufAllocators.data[memid].b,
+                    p->buffers.data[pass->resources.index.buf].r.offset,
+                    pass->resources.index.type);
+        }
         ScratchArenaEnd(sc);
 
         vkCmdBindDescriptorSets(p->cmdBufs[counter], VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeLayout, 0, 1,
                                 &pass->pass.set, 0, NULL);
 
         // pass->draw();
-        vkCmdDraw(p->cmdBufs[counter], 3, 1, 0, 0);
+        //vkCmdDraw(p->cmdBufs[counter], 3, 1, 0, 0);
+        vkCmdDrawIndexed(p->cmdBufs[counter], 3, 1, 0, 0, 0);
 
         vkCmdEndRenderPass(p->cmdBufs[counter]);
     }
@@ -888,9 +948,12 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
 
     Pass final = {
         .pass.framebuffer = pipe->framebufferInfos.size,
-        .resources.verts = {
-            .start = pipe->passVertMapping.size,
-            .num = pass->vertex_buffers.size,
+        .resources = {
+            .verts = {
+                .start = pipe->passVertMapping.size,
+                .num = pass->vertex_buffers.size,
+            },
+            .index = -1,
         },
     };
 
@@ -899,6 +962,12 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
     for (u32 i = 0; i < pass->vertex_buffers.size; i++) {
         u32 bufid = pipe->resourceMapping.data[pass->vertex_buffers.data[i]];
         dynPush(pipe->passVertMapping, bufid);
+    }
+
+    if (pass->index_buffer != -1) {
+        u32 bufid = pipe->resourceMapping.data[pass->index_buffer];
+        final.resources.index.buf = bufid;
+        final.resources.index.type= pass->index_type;
     }
 
     vkCreateRenderPass(v->dev, &rpass, NULL, &final.pass.pass);
@@ -995,12 +1064,18 @@ BufAllocType GetBufAlloc(SEMemType mem, VkBufferUsageFlags usage) {
 
         if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
             return BUF_ALLOC_UNIFORM_STATIC;
+
+        if (usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
+            return BUF_ALLOC_INDEX_STATIC;
     } else {
         if (usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
             return BUF_ALLOC_VERT_DYN;
 
         if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
             return BUF_ALLOC_UNIFORM_DYN;
+
+        if (usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
+            return BUF_ALLOC_INDEX_DYN;
     }
 
     return BUF_ALLOC_INVALID;
@@ -1008,11 +1083,14 @@ BufAllocType GetBufAlloc(SEMemType mem, VkBufferUsageFlags usage) {
 
 SEMemType GetBufMemType(BufAllocType type) {
     switch (type) {
+        case BUF_ALLOC_INDEX_STATIC:
         case BUF_ALLOC_VERT_STATIC:
         case BUF_ALLOC_UNIFORM_STATIC: return SE_MEM_STATIC;
 
+        case BUF_ALLOC_INDEX_DYN:
         case BUF_ALLOC_VERT_DYN:
         case BUF_ALLOC_UNIFORM_DYN: return SE_MEM_DYNAMIC;
+
 
         default: {
             debugerr("Invalid Buf Type");
@@ -1027,6 +1105,8 @@ SEBufType GetBufType(BufAllocType type) {
         case BUF_ALLOC_VERT_STATIC: return SE_BUFFER_VERT;
         case BUF_ALLOC_UNIFORM_STATIC:
         case BUF_ALLOC_UNIFORM_DYN: return SE_BUFFER_UNIFORM;
+        case BUF_ALLOC_INDEX_STATIC:
+        case BUF_ALLOC_INDEX_DYN: return SE_BUFFER_INDEX;
 
         default: {
             debugerr("Invalid Type");
