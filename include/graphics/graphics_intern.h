@@ -80,6 +80,12 @@ typedef struct SEVulkan {
     dynArray(VkShaderModule) shaders;
 
     struct {
+        VkFormat depth16;
+        VkFormat depth24;
+        VkFormat depth32;
+    } formats;
+
+    struct {
         bool8 anisotropy : 1;
         //INFO(ELI): Add more flags as needed
     } features;
@@ -159,17 +165,22 @@ typedef enum Resourcetype {
 } Resourcetype;
 
 typedef enum AccessFlag {
-    ACCESS_UNINITIALIZED = 0,
-    ACCESS_PREINITIALIZED,
-    ACCESS_COLOR_ATTACHMENT,
+    ACCESS_WRITE = 1 << 0,
+    ACCESS_READ = 1 << 1,
 } AccessFlag;
+
+typedef struct ResourceAccess {
+    AccessFlag flag;
+    bool8 clear;
+    u32 pass;
+} ResourceAccess;
 
 typedef struct Resource {
     Resourcetype type;
+    dynArray(ResourceAccess) accesses;
 
     union {
         struct SEImageInfo {
-            AccessFlag lastAccess;
             f32 width, height;
             VkFormat format;
             VkImageUsageFlags usage;
@@ -216,15 +227,18 @@ typedef struct DescriptorLayout {
     dynArray(VkDescriptorSetLayoutBinding) bindings;
 } DescriptorLayout;
 
-typedef struct PassInfo {
-    dynArray(u32) color_attachments; 
-    dynArray(u32) vertex_buffers;
-    u32 index_buffer;
+typedef struct ResourceHandle {
+    //NOTE(ELI): The rid is the id of the resource,
+    //and the index is the relative order of the pass
+    //based on which passes access that specific resource
+    u32 rid, index;
+} ResourceHandle;
 
-    struct {
-        u32 depth_buffer;
-        bool8 clear_depth;
-    } depth;
+typedef struct PassInfo {
+    dynArray(ResourceHandle) writes;
+    dynArray(ResourceHandle) reads;
+
+    SEDrawFunc* func;
 
     VkIndexType index_type;
     u32 pipeline;
@@ -274,7 +288,7 @@ typedef struct Pass {
 
     v2u size;
 
-    void (*draw)();
+    SEDrawFunc* draw;
     bool8 (*clear)();
 } Pass;
 
@@ -317,6 +331,11 @@ typedef struct SERenderPipeline {
     dynArray(SEImage) images;
 } SERenderPipeline;
 
+typedef struct RenderCtx {
+    Pass* pass;
+    VkCommandBuffer buf;
+} RenderCtx;
+
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -347,6 +366,7 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
 void DestroyVulkan(SEVulkan g, Allocator a);
 
 //helpers
+VkFormat PickFormat(SEVulkan* v, VkFormat* formats, u32 numFormats, VkFormatFeatureFlags features, bool8 optimal);
 VkPipeline CreatePipeline(SEVulkan* v, VkRenderPass r, PipelineInfo* info, VkPipelineLayout layout);
 VkPipelineLayout CreatePipelineLayout(SEVulkan* v, DescriptorLayout* l);
 Layout CompileLayout(SEVulkan* v, DescriptorLayout* layout);

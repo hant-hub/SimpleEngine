@@ -58,12 +58,21 @@
         - [X] Add to image
     - [ ] Shader Storage (only read and compile once)
     - [X] Texture Data
-- [ ] Depth Buffering
-    - [ ] New image
-        - [ ] Select Depth Format
-        - [ ] update CreateImage
-    - [ ] New Resource Type
-
+- [X] Rework Resources
+    - Allows for checking whether image will be used later, or has already been used implicit ordering
+    - [X] fix SE funcs
+    - [X] fix build pass
+    - [X] Resources store passes
+    - [X] Passes store resourceID and passIndex
+- [X] Depth Buffering
+    - [X] New image
+        - [X] Select Depth Format
+        - [X] update CreateImage
+    - [X] Update Pipeline Config
+- [X] Custom Draw Func
+    - [X] proc on passInfo
+    - [X] helper draw funcs
+        - [X] SEdraw
 
 ## Quality of Life:
 - [X] Fix all tests printing

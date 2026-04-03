@@ -56,6 +56,21 @@ u32 SEAddDescriptorLayout(SEwindow *win, SERenderPipelineInfo *r) {
     return r->layouts.size - 1;
 }
 
+void SESetCallback(SERenderPipelineInfo* r, u32 pass, SEDrawFunc* func) {
+    r->passes.data[pass].func = func;
+}
+
+void SEDraw(void* ctx, u32 triCount, u32 offset) {
+    RenderCtx* r = ctx;
+
+    if (r->pass->resources.index.buf != -1) {
+        vkCmdDrawIndexed(r->buf, triCount * 3, 1, offset, 0, 0);
+    } else {
+        vkCmdDraw(r->buf, triCount * 3, 1, offset, 0);
+    }
+
+}
+
 void SEAddDescriptorBinding(SEwindow *win, SERenderPipelineInfo *r, u32 layout, SEShaderStage stage,
                             SEDescriptorType type, u32 count) {
 
@@ -85,6 +100,7 @@ u32 SEAddColorAttachment(SEwindow *win, SERenderPipelineInfo *r) {
     dynPush(r->resources, (Resource){0});
     dynBack(r->resources) = (Resource){
         .type = RESOURCE_IMAGE,
+        .accesses.a = win->mem,
         .resourceInfo.img =
         {
             .width = 1.0,
@@ -105,6 +121,7 @@ u32 SEAddDepthAttachment(SEwindow* win, SERenderPipelineInfo *r) {
     dynPush(r->resources, (Resource){0});
     dynBack(r->resources) = (Resource){
         .type = RESOURCE_IMAGE,
+        .accesses.a = win->mem,
         .resourceInfo.img =
         {
             .width = 1.0,
@@ -112,7 +129,7 @@ u32 SEAddDepthAttachment(SEwindow* win, SERenderPipelineInfo *r) {
             .swapRel = TRUE,
             .persist = FALSE,
             .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            .format = VK_FORMAT_D32_SFLOAT_S8_UINT,
+            .format = v->formats.depth32,
             .layout = VK_IMAGE_LAYOUT_UNDEFINED,
         },
     };
@@ -124,6 +141,7 @@ u32 SEAddVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 s
     dynPush(r->resources, (Resource){0});
     dynBack(r->resources) = (Resource) {
         .type = RESOURCE_BUFFER,
+        .accesses.a = win->mem,
         .resourceInfo.buf = {
             .memType = t,
             .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -138,6 +156,7 @@ u32 SEAddIndexBuffer(SEwindow* win, SERenderPipelineInfo* r, SEMemType t, u32 si
     dynPush(r->resources, (Resource){0});
     dynBack(r->resources) = (Resource) {
         .type = RESOURCE_BUFFER,
+        .accesses.a = win->mem,
         .resourceInfo.buf = {
             .memType = t,
             .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -152,7 +171,12 @@ u32 SEAddUniformBuffer(SEwindow *win, SERenderPipelineInfo *r, SEMemType t, u32 
     dynPush(r->resources, (Resource){0});
     dynBack(r->resources) = (Resource){
         .type = RESOURCE_BUFFER,
-        .resourceInfo.buf = {.memType = t, .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size},
+        .accesses.a = win->mem,
+        .resourceInfo.buf = {
+            .memType = t,
+            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            .size = size
+        },
     };
 
     return r->resources.size - 1;
@@ -361,6 +385,35 @@ u32 SEAddPipeline(SEwindow *win, SERenderPipelineInfo *r, u32 layout) {
     return r->pipeline.size - 1;
 }
 
+void SEConfigDepth(SEwindow* win, SERenderPipelineInfo* r, u32 pipe, SEDepthOp depthop) {
+    VkCompareOp op;
+
+    if ((depthop & SE_DEPTH_OP_LESS) == depthop) {
+        op = VK_COMPARE_OP_LESS;
+    } else if ((depthop & SE_DEPTH_OP_GREATER) == depthop) {
+        op = VK_COMPARE_OP_GREATER;
+    } else if ((depthop & (SE_DEPTH_OP_EQ)) == depthop) {
+        op = VK_COMPARE_OP_EQUAL;
+    } else if ((depthop & (SE_DEPTH_OP_LESS | SE_DEPTH_OP_EQ)) == depthop) {
+        op = VK_COMPARE_OP_LESS_OR_EQUAL;
+    } else if ((depthop & (SE_DEPTH_OP_GREATER | SE_DEPTH_OP_EQ)) == depthop) {
+        op = VK_COMPARE_OP_GREATER_OR_EQUAL;
+    } else {
+        op = VK_COMPARE_OP_ALWAYS; //usually more visible than never
+    }
+
+    r->pipeline.data[pipe].pDepthStencilState = (VkPipelineDepthStencilStateCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = TRUE,
+        .depthWriteEnable = TRUE,
+        .depthBoundsTestEnable = FALSE,
+        .stencilTestEnable = FALSE,
+        .minDepthBounds = 0.00f,
+        .maxDepthBounds = 1.0f,
+        .depthCompareOp = op,
+    };
+}
+
 void SESetShaderVertex(SEwindow *win, SERenderPipelineInfo *info, u32 pipe, SString filename) {
     SEVulkan *v = GetGraphics(win);
     ScratchArena sc = ScratchArenaGet(NULL);
@@ -449,9 +502,8 @@ void SEAddVertexBinding(SERenderPipelineInfo *rinfo, u32 pass, SEBindingType typ
 
 u32 SENewPass(SEwindow *win, SERenderPipelineInfo *r) {
     dynPush(r->passes, ((PassInfo){
-                           .color_attachments.a = win->mem,
-                           .vertex_buffers.a = win->mem,
-                           .index_buffer = -1,
+                            .writes.a = win->mem,
+                            .reads.a = win->mem,
                        }));
 
     return r->passes.size - 1;
@@ -459,17 +511,43 @@ u32 SENewPass(SEwindow *win, SERenderPipelineInfo *r) {
 
 void SEUsePipeline(SERenderPipelineInfo *r, u32 pass, u32 pipe) { r->passes.data[pass].pipeline = pipe; }
 
+void SEWriteResource(SEwindow* win, SERenderPipelineInfo* r, bool8 clear, u32 pass, u32 resourceID) {
+    ResourceHandle handle = {
+        .rid = resourceID,
+        .index = r->resources.data[resourceID].accesses.size,
+    };
+
+    ResourceAccess access = {
+        .flag = ACCESS_WRITE,
+        .clear = clear,
+        .pass = pass,
+    };
+
+    dynPush(r->passes.data[pass].writes, handle);
+    dynPush(r->resources.data[resourceID].accesses, access);
+}
+
+void SEReadResource(SEwindow* win, SERenderPipelineInfo* r, u32 pass, u32 resourceID) {
+    ResourceHandle handle = {
+        .rid = resourceID,
+        .index = r->resources.data[resourceID].accesses.size,
+    };
+
+    ResourceAccess access = {
+        .flag = ACCESS_READ,
+        .pass = pass,
+    };
+
+    dynPush(r->passes.data[pass].reads, handle);
+    dynPush(r->resources.data[resourceID].accesses, access);
+}
+
 void SEWriteColorAttachment(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID) {
-    dynPush(r->passes.data[pass].color_attachments, resourceID);
+    panic();
 }
 
-void SEUseDepthAttachment(SEwindow* win, SERenderPipelineInfo *r, u32 pass, bool8 clear, u32 resourceID) {
-    r->passes.data[pass].depth.depth_buffer = resourceID;
-    r->passes.data[pass].depth.clear_depth = clear;
-}
-
-void SEUseVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID) {
-    dynPush(r->passes.data[pass].vertex_buffers, resourceID);
+void SEReadVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID) {
+    panic();
 }
 
 static VkIndexType SEtoVKIndex[] = {
@@ -478,8 +556,8 @@ static VkIndexType SEtoVKIndex[] = {
 };
 
 void SEUseIndexBuffer(SEwindow* win, SERenderPipelineInfo* r, u32 pass, u32 resourceID, SEIndexType index_type) {
-    r->passes.data[pass].index_buffer = resourceID;
     r->passes.data[pass].index_type = SEtoVKIndex[index_type];
+    SEReadResource(win, r, pass, resourceID);
 }
 
 void SESetBackBuffer(SERenderPipelineInfo *r, u32 resourceID) {
@@ -644,6 +722,11 @@ void SEExecutePipeline(SEwindow *win, SERenderPipeline *p) {
     for (u32 i = 0; i < p->passes.size; i++) {
         Pass *pass = &p->passes.data[i];
 
+        VkClearValue clearColors[] = {
+            (VkClearValue){.color.float32 = {0, 0, 0}},
+            (VkClearValue){.depthStencil.depth = 1.0f},
+        };
+
         VkRenderPassBeginInfo rbeg = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
             .renderPass = pass->pass.pass,
@@ -652,8 +735,8 @@ void SEExecutePipeline(SEwindow *win, SERenderPipeline *p) {
                 .offset = {0, 0},
                 .extent = {pass->size.x, pass->size.y},
             },
-            .clearValueCount = 1,
-            .pClearValues = &(VkClearValue){.color.float32 = {0, 0, 0}},
+            .clearValueCount = p->framebufferInfos.data[pass->pass.framebuffer].num,
+            .pClearValues = clearColors,
         };
 
         vkCmdBeginRenderPass(p->cmdBufs[counter], &rbeg, VK_SUBPASS_CONTENTS_INLINE);
@@ -697,11 +780,13 @@ void SEExecutePipeline(SEwindow *win, SERenderPipeline *p) {
 
         vkCmdBindDescriptorSets(p->cmdBufs[counter], VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeLayout, 0, 1,
                                 &pass->pass.set, 0, NULL);
+        RenderCtx ctx = {
+            .pass = pass,
+            .buf = p->cmdBufs[counter],
+        };
 
-        // pass->draw();
-        //vkCmdDraw(p->cmdBufs[counter], 3, 1, 0, 0);
-        vkCmdDrawIndexed(p->cmdBufs[counter], 3, 1, 0, 0, 0);
-
+        pass->draw(&ctx);
+            
         vkCmdEndRenderPass(p->cmdBufs[counter]);
     }
 
@@ -857,26 +942,37 @@ void SEExecutePipeline(SEwindow *win, SERenderPipeline *p) {
     }
 }
 
+typedef struct ImageUsage {
+    VkAttachmentDescription descrip;
+    VkImageUsageFlags usage;
+    VkAttachmentReference ref;
+    VkImageLayout layout;
+    VkAccessFlags src;
+    VkAccessFlags dst;
+    VkPipelineStageFlags src_flags;
+    VkPipelineStageFlags dst_flags;
+} ImageUsage;
+
+ImageUsage BuildImageWrite(SERenderPipelineInfo* info, SERenderPipeline* pipe, ResourceHandle handle, ResourceAccess access, Resource* res, PassInfo* pass);
+void BuildBufferRead(SERenderPipelineInfo* info, SERenderPipeline* pipe, ResourceHandle handle, Resource* res, Pass* final, PassInfo* pass);
+
 void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe, u32 pidx) {
     SEVulkan *v = GetGraphics(win);
     PassInfo *pass = &info->passes.data[pidx];
 
     ScratchArena sc = ScratchArenaGet(NULL);
 
-    u32 num_attachments = pass->color_attachments.size;
-    VkAttachmentReference *color_attachments
-        = ArenaAlloc(&sc.arena, sizeof(VkAttachmentReference) * pass->color_attachments.size);
-    VkAttachmentDescription *descrips = ArenaAllocZero(&sc.arena, sizeof(VkAttachmentReference) * num_attachments);
+    VkAttachmentReference *color_attachments = ArenaAlloc(&sc.arena, sizeof(VkAttachmentReference) * (pass->writes.size));
+    VkAttachmentReference depth_attach = {0};
+    VkAttachmentDescription *descrips = ArenaAllocZero(&sc.arena, sizeof(VkAttachmentReference) * (pass->reads.size + pass->writes.size));
 
     FrameBufferInfo framebuf = {
         .first = pipe->frameBufferMapping.size,
-        .num = num_attachments,
     };
 
     VkSubpassDescription subpass = {
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .pColorAttachments = color_attachments,
-        .colorAttachmentCount = pass->color_attachments.size,
     };
 
     VkSubpassDependency dep = {
@@ -886,55 +982,79 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
         .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
     };
 
-    if (pass->color_attachments.size) {
-        dep.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        dep.dstStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dep.srcStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    Pass final = {
+        .pass.framebuffer = pipe->framebufferInfos.size,
+        .draw = pass->func,
+        .resources = {
+            .verts = {
+                .start = pipe->passVertMapping.size,
+            },
+            .index = -1,
+        },
+    };
+
+    u32 num_attachments = 0;
+    u32 num_color = 0;
+
+    //handle writes
+    for (u32 i = 0; i < pass->writes.size; i++) {
+        Resource* res = &info->resources.data[pass->writes.data[i].rid];
+        u32 rid = pass->writes.data[i].rid;
+        
+        switch (res->type) {
+            case RESOURCE_BUFFER: {
+                panic();
+            } break;
+            case RESOURCE_IMAGE: {
+                ImageUsage img = BuildImageWrite(info, pipe, pass->writes.data[i], res->accesses.data[pidx], res, pass);                
+                framebuf.num++;
+
+                res->resourceInfo.img.layout = img.layout;
+
+                img.ref.attachment = num_attachments;
+                descrips[num_attachments++] = img.descrip;
+
+                if (img.usage == VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
+                    color_attachments[num_color++] = img.ref;
+                } else if (img.usage == VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+                    //NOTE(ELI): This line can't be moved out since the pointer needs to be NULL
+                    //if no depth attachment is used
+                    subpass.pDepthStencilAttachment = &depth_attach;
+                    depth_attach = img.ref;
+                }
+
+                dep.srcAccessMask |= img.src;
+                dep.dstAccessMask |= img.dst;
+                dep.srcStageMask |= img.src_flags;
+                dep.dstStageMask |= img.dst_flags;
+
+                dynPush(pipe->frameBufferMapping, pipe->resourceMapping.data[rid]);
+            } break;
+        }
     }
 
-    for (u32 i = 0; i < pass->color_attachments.size; i++) {
+    subpass.colorAttachmentCount = num_color;
 
-        u32 imgIdx = pipe->resourceMapping.data[pass->color_attachments.data[i]];
-        dynPush(pipe->frameBufferMapping, imgIdx);
 
-        struct SEImageInfo *res = &info->resources.data[pass->color_attachments.data[i]].resourceInfo.img;
+    //handle reads
 
-        descrips[i].format = res->format;
-        descrips[i].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        descrips[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        descrips[i].samples = VK_SAMPLE_COUNT_1_BIT;
-        descrips[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        descrips[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        switch (res->lastAccess) {
-            case ACCESS_UNINITIALIZED:
-                descrips[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-                descrips[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    for (u32 i = 0; i < pass->reads.size; i++) {
+        Resource* res = &info->resources.data[pass->reads.data[i].rid];
+        u32 rid = pass->reads.data[i].rid;
 
-                dep.srcAccessMask |= 0;
-                break;
-            case ACCESS_PREINITIALIZED:
-                descrips[i].initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-                descrips[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 
-                dep.srcAccessMask |= 0;
-                break;
-            case ACCESS_COLOR_ATTACHMENT:
-                descrips[i].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-                descrips[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-
-                dep.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-                break;
+        switch (res->type) {
+            case RESOURCE_BUFFER:
+            {
+                BuildBufferRead(info, pipe, pass->reads.data[i], res, &final, pass);
+            } break;
+            case RESOURCE_IMAGE:
+            {
+                todo(); //input attachments + no clear depth attachments
+            } break;
         }
-
-        if (!res->persist) {
-            descrips[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        }
-
-        res->lastAccess = ACCESS_COLOR_ATTACHMENT;
-
-        color_attachments[i].attachment = i;
-        color_attachments[i].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     }
+
 
     VkRenderPassCreateInfo rpass = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -946,29 +1066,8 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
         .dependencyCount = 1,
     };
 
-    Pass final = {
-        .pass.framebuffer = pipe->framebufferInfos.size,
-        .resources = {
-            .verts = {
-                .start = pipe->passVertMapping.size,
-                .num = pass->vertex_buffers.size,
-            },
-            .index = -1,
-        },
-    };
 
     dynPush(pipe->framebufferInfos, framebuf);
-
-    for (u32 i = 0; i < pass->vertex_buffers.size; i++) {
-        u32 bufid = pipe->resourceMapping.data[pass->vertex_buffers.data[i]];
-        dynPush(pipe->passVertMapping, bufid);
-    }
-
-    if (pass->index_buffer != -1) {
-        u32 bufid = pipe->resourceMapping.data[pass->index_buffer];
-        final.resources.index.buf = bufid;
-        final.resources.index.type= pass->index_type;
-    }
 
     vkCreateRenderPass(v->dev, &rpass, NULL, &final.pass.pass);
     final.pass.layout = info->pipeline.data[pass->pipeline].layout;
@@ -979,6 +1078,95 @@ void BuildPass(SEwindow *win, SERenderPipelineInfo *info, SERenderPipeline *pipe
 
     dynPush(pipe->passes, final);
     ScratchArenaEnd(sc);
+}
+
+ImageUsage BuildImageWrite(SERenderPipelineInfo* info, SERenderPipeline* pipe, ResourceHandle handle, ResourceAccess access, Resource* res, PassInfo* pass) {
+    ImageUsage usage = {0};
+
+    if (res->resourceInfo.img.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
+        usage.ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        usage.descrip.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        usage.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        usage.descrip.initialLayout = res->resourceInfo.img.layout; 
+        usage.descrip.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+
+        if (access.clear || res->resourceInfo.img.layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+            usage.descrip.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //don't care
+            usage.descrip.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        }
+
+        usage.descrip.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        usage.descrip.samples = VK_SAMPLE_COUNT_1_BIT;
+
+        usage.descrip.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        usage.descrip.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+
+        usage.descrip.format = res->resourceInfo.img.format;
+
+        usage.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        usage.src = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        usage.dst = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        usage.src_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        usage.dst_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    } else if (res->resourceInfo.img.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+        usage.ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        usage.descrip.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        usage.layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+
+        usage.descrip.initialLayout = res->resourceInfo.img.layout; 
+        usage.descrip.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+
+        if (access.clear || res->resourceInfo.img.layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+            usage.descrip.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //don't care
+            usage.descrip.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        }
+
+        usage.descrip.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        usage.descrip.samples = VK_SAMPLE_COUNT_1_BIT;
+
+        for (u32 i = handle.index; i < res->accesses.size; i++) {
+            if (res->accesses.data[i].flag & ACCESS_READ) {
+                usage.descrip.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+                break;
+            }
+            if (res->accesses.data[i].flag & ACCESS_WRITE) break;
+        }
+
+        usage.descrip.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        usage.descrip.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+
+        usage.descrip.format = res->resourceInfo.img.format;
+
+        usage.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+        usage.src = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        usage.dst = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+
+        usage.src_flags = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        usage.dst_flags = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    } else {
+        panic();
+    }
+
+    return usage;
+}
+
+void BuildBufferRead(SERenderPipelineInfo* info, SERenderPipeline* pipe, ResourceHandle handle, Resource* res, Pass* final, PassInfo* pass) {
+
+    if (res->resourceInfo.buf.usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT) {
+        u32 bufid = pipe->resourceMapping.data[handle.rid];
+        dynPush(pipe->passVertMapping, bufid);
+        final->resources.verts.num++;
+    } else if (res->resourceInfo.buf.usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT) {
+        final->resources.index.buf = pipe->resourceMapping.data[handle.rid];
+        final->resources.index.type = pass->index_type;
+    }
+
 }
 
 void BuildFrameBuffers(SEVulkan *v, SERenderPipeline *pipe) {
@@ -1122,8 +1310,8 @@ void SEDestroyRenderPipelineInfo(SEwindow *win, SERenderPipelineInfo *r) {
     dynFree(r->samplers);
 
     for (u32 i = 0; i < r->passes.size; i++) {
-        dynFree(r->passes.data[i].color_attachments);
-        dynFree(r->passes.data[i].vertex_buffers);
+        dynFree(r->passes.data[i].reads);
+        dynFree(r->passes.data[i].writes);
     }
     dynFree(r->passes);
 

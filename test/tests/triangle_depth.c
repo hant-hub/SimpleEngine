@@ -7,12 +7,9 @@
 
 
 
-//void CustomDraw(SECmdBuf* cmd, void* handle) {
-//    VkBuffer b = 0;
-//    VkDeviceSize s = 0;
-//    //vkCmdBindVertexBuffers(cmd->buf, 0, 1, &b, &s);
-//    vkCmdDraw(cmd->buf, 3, 1, 0, 0);
-//}
+void CustomDraw(void* handle) {
+    SEDraw(handle, 2, 0);
+}
 
 int main() {
     setdirExe();
@@ -39,9 +36,9 @@ int main() {
     SERenderPipelineInfo* r = SECreateRenderPipeline(win);
     u32 color = SEAddColorAttachment(win, r);
     u32 depth = SEAddDepthAttachment(win, r);
-    u32 vbuf = SEAddVertexBuffer(win, r, SE_MEM_DYNAMIC, sizeof(v2f) * 3);
-    u32 ibuf = SEAddIndexBuffer(win, r, SE_MEM_DYNAMIC, sizeof(u32) * 3);
-    u32 ubuf = SEAddUniformBuffer(win, r, SE_MEM_DYNAMIC, 16 * 3);
+    u32 vbuf = SEAddVertexBuffer(win, r, SE_MEM_DYNAMIC, sizeof(v2f) * 3 * 2);
+    u32 ibuf = SEAddIndexBuffer(win, r, SE_MEM_DYNAMIC, sizeof(u16) * 3 * 2);
+    u32 ubuf = SEAddUniformBuffer(win, r, SE_MEM_DYNAMIC, 16 * 3 * 2);
     u32 layout = SEAddDescriptorLayout(win, r);
 
     SEAddDescriptorBinding(win, r, layout, SE_SHADER_VERTEX, SE_UNIFORM_BUFFER, 1);
@@ -50,12 +47,17 @@ int main() {
     SESetShaderFrag(win, r, pipeConfig, sstring("../shaders/basic.frag.spv"));
     SESetShaderVertex(win, r, pipeConfig, sstring("../shaders/basic_vert.vert.spv"));
     SEAddVertexBinding(r, pipeConfig, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
+
+    SEConfigDepth(win, r, pipeConfig, SE_DEPTH_OP_LESS | SE_DEPTH_OP_EQ);
     
     u32 color_pass = SENewPass(win, r);
-    SEWriteColorAttachment(win, r, color_pass, color);
+    SEWriteResource(win, r, TRUE, color_pass, color);
+    SEWriteResource(win, r, TRUE, color_pass, depth);
+    SEReadResource(win, r, color_pass, vbuf);
+
     SEUsePipeline(r, color_pass, pipeConfig);
-    SEUseVertexBuffer(win, r, color_pass, vbuf);
     SEUseIndexBuffer(win, r, color_pass, ibuf, SE_INDEX_U16);
+    SESetCallback(r, color_pass, CustomDraw);
 
     SESetBackBuffer(r, color);
 
@@ -70,18 +72,30 @@ int main() {
     verts[0] = (v2f){0.0, -0.5};
     verts[1] = (v2f){0.5, 0.5};
     verts[2] = (v2f){-0.5, 0.5};
+
+    verts[3] = (v2f){0.5, -0.5};
+    verts[4] = (v2f){0.5, 0.5};
+    verts[5] = (v2f){-0.5, 0.5};
     SEUnmapDynBuf(win, pipe, vbuf);
 
     u16* indicies = SERetrieveDynBuf(win, pipe, ibuf);
     indicies[0] = 0;
     indicies[1] = 1;
     indicies[2] = 2;
+
+    indicies[3] = 3;
+    indicies[4] = 4;
+    indicies[5] = 5;
     SEUnmapDynBuf(win, pipe, ibuf);
 
     f32* uniforms = SERetrieveDynBuf(win, pipe, ubuf);
     uniforms[0] = 1.0f;
-    uniforms[5] = 1.0f;
-    uniforms[10] = 1.0f;
+    uniforms[4] = 1.0f;
+    uniforms[8] = 1.0f;
+
+    uniforms[13] = 1.0f;
+    uniforms[17] = 1.0f;
+    uniforms[21] = 1.0f;
     SEUnmapDynBuf(win, pipe, ubuf);
 
 

@@ -608,6 +608,41 @@ void CreateVulkan(VkInstance inst, VkSurfaceKHR surf, SEwindow* win, SEVulkan* g
         vkGetPhysicalDeviceProperties(g->pdev, &props);
         g->featureInfo.anisotropy.max = props.limits.maxSamplerAnisotropy; 
     }
+
+    //set Global Formats
+    {
+        VkFormat depth16[] = {
+            VK_FORMAT_D16_UNORM_S8_UINT,
+            VK_FORMAT_D16_UNORM,
+        };
+
+        g->formats.depth16 = PickFormat(g,
+                depth16,
+                ARRAY_SIZE(depth16),
+                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                VK_TRUE);
+
+        VkFormat depth24[] = {
+            VK_FORMAT_D24_UNORM_S8_UINT,
+        };
+
+        g->formats.depth24 = PickFormat(g,
+                depth24,
+                ARRAY_SIZE(depth24),
+                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                VK_TRUE);
+
+        VkFormat depth32[] = {
+            VK_FORMAT_D32_SFLOAT_S8_UINT,
+            VK_FORMAT_D32_SFLOAT,
+        };
+
+        g->formats.depth32 = PickFormat(g,
+                depth32,
+                ARRAY_SIZE(depth32),
+                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                VK_TRUE);
+    }
 }
 
 

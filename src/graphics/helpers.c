@@ -2,6 +2,28 @@
 #include "vulkan/vulkan_core.h"
 #include <graphics/graphics_intern.h>
 
+VkFormat PickFormat(SEVulkan* v, VkFormat* formats, u32 numFormats, VkFormatFeatureFlags features, bool8 optimal) {
+
+    for (u32 i = 0; i < numFormats; i++) {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(v->pdev, formats[i], &props);
+        
+        VkFormatFeatureFlagBits flags;
+        if (optimal) {
+            flags = props.optimalTilingFeatures;
+        } else {
+            flags = props.linearTilingFeatures;
+        }
+
+        if ((flags & features) == features) {
+            return formats[i];
+        }
+    }
+
+
+    return VK_FORMAT_UNDEFINED;
+}
+
 VkPipelineLayout CreatePipelineLayout(SEVulkan* v, DescriptorLayout* l) {
 
     l->info.pBindings = l->bindings.data;
@@ -57,6 +79,7 @@ VkPipeline CreatePipeline(SEVulkan *v, VkRenderPass r, PipelineInfo *info, VkPip
         .pRasterizationState = info->pRasterizationState.sType ? &info->pRasterizationState : NULL,
         .pMultisampleState = info->pMultisampleState.sType ? &info->pMultisampleState : NULL,
         .pViewportState = info->pViewportState.sType ? &info->pViewportState : NULL,
+        .pDepthStencilState = info->pDepthStencilState.sType ? &info->pDepthStencilState : NULL,
         .stageCount = 2,
         .pStages = shaders,
         .renderPass = r,

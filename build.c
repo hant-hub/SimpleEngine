@@ -61,6 +61,14 @@ int main(int argc, char *argv[]) {
             // downloads latest version of
             // cutils
             sb_CMD() {
+                sb_cmd_main("rm");
+                sb_cmd_opt("rf");
+                sb_cmd_arg("lib/cutils");
+            }
+
+            sb_fence();
+
+            sb_CMD() {
                 sb_cmd_main("git");
                 sb_cmd_arg("clone");
                 sb_cmd_arg("git@github.com:hant-hub/Cutils.git");

@@ -53,19 +53,22 @@ typedef enum SEShaderStage {
     SE_SHADER_FRAGMENT = 1 << 1,
 } SEShaderStage;
 
+typedef enum SEDepthOp {
+    SE_DEPTH_OP_LESS = 1 << 0,
+    SE_DEPTH_OP_GREATER = 1 << 1,
+    SE_DEPTH_OP_EQ = 1 << 2,
+} SEDepthOp;
+
 typedef struct SEwindow SEwindow;
 
 // Rendergraph
 typedef struct SERenderPipelineInfo SERenderPipelineInfo;
 typedef struct SERenderPipeline SERenderPipeline;
-typedef struct SECmdBuf SECmdBuf;
 
 // rendercallback
-typedef void (*SEDrawFunc)(SECmdBuf *p, void *pass);
+typedef void (SEDrawFunc)(void *ctx);
 
 #define SE_SCREEN 0
-
-void DrawTriangle(SECmdBuf *buf, void *pass);
 
 SERenderPipelineInfo *SECreateRenderPipeline(SEwindow *win);
 void SEDestroyRenderPipelineInfo(SEwindow *win, SERenderPipelineInfo *r);
@@ -80,15 +83,18 @@ u32 SEAddUniformBuffer(SEwindow* win, SERenderPipelineInfo *r, SEMemType t, u32 
 u32 SEAddTexture(SEwindow* win, SERenderPipelineInfo* r, SEImageFormat format, u32 width, u32 height);
 u32 SEAddTextureSampler(SEwindow* win, SERenderPipelineInfo* r);
 
-void SEUseVertexBuffer(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID);
+void SEWriteResource(SEwindow* win, SERenderPipelineInfo* r, bool8 clear, u32 pass, u32 resourceID);
+void SEReadResource(SEwindow* win, SERenderPipelineInfo* r, u32 pass, u32 resourceID);
+void SESetCallback(SERenderPipelineInfo* r, u32 pass, SEDrawFunc* func);
+
 void SEUseIndexBuffer(SEwindow* win, SERenderPipelineInfo* r, u32 pass, u32 resourceID, SEIndexType index_type);
-void SEWriteColorAttachment(SEwindow *win, SERenderPipelineInfo *r, u32 pass, u32 resourceID);
 void SESetBackBuffer(SERenderPipelineInfo *r, u32 resourceID);
 void SEUsePipeline(SERenderPipelineInfo *r, u32 pass, u32 pipe);
 
 void SESetShaderVertex(SEwindow *win, SERenderPipelineInfo *info, u32 pipe, SString filename);
 void SESetShaderFrag(SEwindow *win, SERenderPipelineInfo *info, u32 pipe, SString filename);
 void SEAddVertexBinding(SERenderPipelineInfo *rinfo, u32 pass, SEBindingType type, SEStructSpec *layout, u32 numMembers);
+void SEConfigDepth(SEwindow* win, SERenderPipelineInfo* r, u32 pipe, SEDepthOp depthop);
 
 u32 SEAddDescriptorLayout(SEwindow *win, SERenderPipelineInfo *r);
 void SEAddDescriptorBinding(SEwindow *win, SERenderPipelineInfo *r, u32 layout, SEShaderStage stage, SEDescriptorType type, u32 count);
@@ -108,5 +114,8 @@ void SEBindTexture(SEwindow *win, SERenderPipeline *p, u32 pass, u32 tex, u32 sa
 void SEUploadBuffer(SEwindow *win, SERenderPipeline *r, u32 resourceID, void *data, u32 size);
 void SEUploadImage(SEwindow* win, SERenderPipeline* r, u32 resourceID, void* data);
 void SEDrawPipeline(SEwindow *win, SERenderPipeline *r);
+
+//Draw Funcs
+void SEDraw(void* ctx, u32 triCount, u32 offset);
 
 #endif

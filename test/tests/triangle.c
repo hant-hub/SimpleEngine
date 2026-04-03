@@ -48,9 +48,12 @@ int main() {
     SEAddVertexBinding(r, pipeConfig, SE_BINDING_VERTEX, vertSpec, ARRAY_SIZE(vertSpec));
     
     u32 color_pass = SENewPass(win, r);
-    SEWriteColorAttachment(win, r, color_pass, color);
+    SEWriteResource(win, r, TRUE, color_pass, color);
+    SEReadResource(win, r, color_pass, vbuf);
+
+    //SEWriteColorAttachment(win, r, color_pass, color);
     SEUsePipeline(r, color_pass, pipeConfig);
-    SEUseVertexBuffer(win, r, color_pass, vbuf);
+    //SEReadVertexBuffer(win, r, color_pass, vbuf);
 
     SESetBackBuffer(r, color);
 
